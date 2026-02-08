@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DGST Series</title>
+
+  <script src="../_shared/version.js"></script>
+  <script>
+    (function () {
+      var v = (window.SITE_BUILD || "dev") + "";
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "../_shared/styles.css?v=" + encodeURIComponent(v);
+      document.head.appendChild(link);
+    })();
+  </script>
+</head>
+
+<body data-dgst-shell="1">
+  <div id="header-slot"></div>
+
+  <div id="view-slot"></div>
+
+  <div id="footer-slot"></div>
+
+  <script>
+    (function () {
+      var v = (window.SITE_BUILD || "dev") + "";
+
+      function withV(src) {
+        return src + (src.indexOf("?") >= 0 ? "&" : "?") + "v=" + encodeURIComponent(v);
+      }
+
+      function loadScript(src, cb) {
+        var s = document.createElement("script");
+        s.src = withV(src);
+        s.onload = function () { cb && cb(); };
+        s.onerror = function () { console.error("Failed to load script:", src); };
+        document.body.appendChild(s);
+      }
+
+      // Load series config first (local), then shared runtime.
+      loadScript("./series.config.js", function () {
+        loadScript("../_shared/common.js", function () {
+          // View modules
+          loadScript("../_shared/index.js", function () {
+            loadScript("../_shared/standings.js", function () {
+              loadScript("../_shared/all-events.js", function () {
+                loadScript("../_shared/player.js", function () {
+                  // Router last
+                  loadScript("../_shared/router.js");
+                });
+              });
+            });
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

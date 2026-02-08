@@ -1,0 +1,34 @@
+<div class="page">
+    <h1>All Results</h1>
+    
+      <p class="hint">Filter by Event/Division, or search by Name/PDGA#.
+      </p>
+
+    <div class="controls">
+      <label class="control">
+        <span>Event</span>
+        <select id="eventSelect"></select>
+      </label>
+
+      <label class="control">
+        <span>Division</span>
+        <select id="divisionSelect"></select>
+      </label>
+
+      <label class="control">
+        <span>Player</span>
+        <input id="searchInput" type="text" placeholder="Input Name or PDGA#" autocomplete="off" />
+      </label>
+    </div>
+    
+    <div id="status" class="status"></div>
+
+    <div class="table-wrap" id="tableWrap">
+      <table class="results-table">
+        <thead id="resultsHead"></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+
+  </div>

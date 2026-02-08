@@ -1,0 +1,40 @@
+<div class="page">
+    <h1>Player Stats</h1>
+    
+    <div id="status" class="status"></div>
+
+    <div class="controls">
+      <label class="control">
+        <span>Find Player</span>
+        <select id="nameSelect"></select>
+      </label>
+
+      <label class="control">
+        <span>PDGA#</span>
+        <input id="pdgaInput" type="text" inputmode="numeric" placeholder="Enter PDGA#" autocomplete="off" />
+      </label>
+
+      <button id="goBtn">Load Player Stats</button>
+    </div>
+
+    <div class="card">
+      <div class="player-title-row">
+        <div id="playerName" class="player-title"></div>
+        <div id="playerPdga" class="player-pdga"></div>
+      </div>
+      <div id="playerMeta" class="player-meta"></div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; justify-content:left; flex-wrap:wrap;">
+        <a id="allResultsLink" class="btn-secondary" href="all-events.html">View in All Results</a>
+        <a id="pdgaLink" class="btn-secondary" href="#" target="_blank" rel="noopener noreferrer">Open on PDGA</a>
+      </div>
+    </div>
+
+    <div class="table-wrap" id="resultsWrap">
+      <table class="results-table">
+        <thead id="resultsHead"></thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
