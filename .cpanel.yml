@@ -1,16 +1,21 @@
 deployment:
   tasks:
+    # --- Configure your document root here ---
     - export DEPLOYPATH=/home/chumuvep/dgseries.com
 
-    # Safety: ensure deploy path exists
-    - /bin/mkdir -p $DEPLOYPATH
+    # --- Safety: ensure deploy path exists ---
+    - /bin/mkdir -p "$DEPLOYPATH"
 
-    # Safety: remove old site files (but keep .well-known and cgi-bin)
-    - /usr/bin/find $DEPLOYPATH -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name 'cgi-bin' -exec /bin/rm -rf {} +
+    # --- Safety: remove only DGST site payload, but preserve host-managed folders/files ---
+    # Keeps: .well-known, cgi-bin, .htaccess
+    - /usr/bin/find "$DEPLOYPATH" -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name 'cgi-bin' ! -name '.htaccess' -exec /bin/rm -rf {} +
 
-    # Copy the site into place (adjust folder names if yours differ)
-    - /bin/cp -a index.html $DEPLOYPATH/
-    - /bin/cp -a pdga-proxy.php $DEPLOYPATH/
-    - /bin/cp -a _shared $DEPLOYPATH/
-    - /bin/cp -a sows-25-26 $DEPLOYPATH/
-    - /bin/cp -a uplay-2025-26-winter $DEPLOYPATH/
+    # --- Deploy core site files/folders ---
+    - /bin/cp -a index.html "$DEPLOYPATH/"
+    - /bin/cp -a pdga-proxy.php "$DEPLOYPATH/"
+    - /bin/cp -a _shared "$DEPLOYPATH/"
+    - /bin/cp -a sows-25-26 "$DEPLOYPATH/"
+    - /bin/cp -a uplay-2025-26-winter "$DEPLOYPATH/"
+
+    # --- Cleanup: ensure server doesn't retain local-only junk if it ever appears ---
+    - /bin/rm -rf "$DEPLOYPATH/.pdga-cache" "$DEPLOYPATH/.git" "$DEPLOYPATH/.github" "$DEPLOYPATH/.DS_Store"
