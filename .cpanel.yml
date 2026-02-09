@@ -1,6 +1,6 @@
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/chumvep/dgseries.com
+    - export DEPLOYPATH=/home/chumuvep/dgseries.com
 
     # Safety: ensure deploy path exists
     - /bin/mkdir -p $DEPLOYPATH
