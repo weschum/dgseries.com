@@ -1,0 +1,16 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/chumvep/dgseries.com
+
+    # Safety: ensure deploy path exists
+    - /bin/mkdir -p $DEPLOYPATH
+
+    # Safety: remove old site files (but keep .well-known and cgi-bin)
+    - /usr/bin/find $DEPLOYPATH -mindepth 1 -maxdepth 1 ! -name '.well-known' ! -name 'cgi-bin' -exec /bin/rm -rf {} +
+
+    # Copy the site into place (adjust folder names if yours differ)
+    - /bin/cp -a index.html $DEPLOYPATH/
+    - /bin/cp -a pdga-proxy.php $DEPLOYPATH/
+    - /bin/cp -a _shared $DEPLOYPATH/
+    - /bin/cp -a sows-25-26 $DEPLOYPATH/
+    - /bin/cp -a uplay-2025-26-winter $DEPLOYPATH/
