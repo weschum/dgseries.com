@@ -1,4 +1,4 @@
-/* /dgst/styles.css
+/* /dgseries.com/_shared/styles.css
    Mobile-first styling for Disc Golf Series Tracker (DGST)
 
    Design goals:
@@ -149,60 +149,66 @@ a { color: #000; }
   border-bottom: 1px solid var(--border);
 }
 
+/* Use GRID to prevent the title from ever wrapping under the logo */
 .site-header-inner {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 8px 14px;
-  display: flex;
+  padding: 6px 14px;
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "brand title nav";
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  column-gap: 10px;
+  row-gap: 8px;
 }
 
+/* 1) DGST brand/logo (always top-left, static) */
 .site-brand {
-  display: flex;
+  grid-area: brand;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-width: 0; /* allow title ellipsis */
+  text-decoration: none;
+  color: inherit;
 }
 
-.site-logo {
-  display: flex;
-  align-items: center;
-  height: 30px; /* aligns with nav pill height */
+.site-logo-img {
+  height: 32px;
+  width: auto;
+  display: block;
 }
 
-.site-logo-text {
-  font-weight: 700;
-  font-size: 16px;
+/* 2) Series title (middle column, right-aligned) */
+.series-title {
+  grid-area: title;
+  min-width: 0; /* required for ellipsis in grid */
+  text-align: right;
+}
+
+.series-title-text {
+  display: block;
+  font-size: 18px; /* default; bumped on desktop below */
   line-height: 1.1;
   letter-spacing: 0.2px;
-  white-space: nowrap;
-}
-
-.site-title {
   font-weight: 700;
   color: #000;
-  min-width: 0;
-}
 
-.site-title-text {
-  display: block;
-  font-size: 16px;
-  line-height: 1.1;
-  letter-spacing: 0.2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* 3) Nav (top-right on wide; drops below on narrow) */
 .nav {
+  grid-area: nav;
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
+/* Nav pills */
 .nav-pill {
   display: inline-flex;
   align-items: center;
@@ -215,6 +221,7 @@ a { color: #000; }
   color: #000;
   text-decoration: none;
   font-weight: var(--nav-font-weight);
+  font-size: 16px; /* desktop size */
   letter-spacing: 0.15px;
   white-space: nowrap;
   transition: transform 0.08s ease, opacity 0.08s ease;
@@ -224,6 +231,40 @@ a { color: #000; }
 .nav-pill:hover { transform: translateY(-1px); opacity: 0.95; }
 .nav-pill:active { transform: translateY(0px); opacity: 0.9; }
 .nav-pill.is-active { background: var(--accent); }
+
+/* -------------------------
+   Narrow / Mobile behavior
+   ------------------------- */
+@media (max-width: 700px) {
+  .site-header-inner {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "brand title"
+      "nav   nav";
+    align-items: start;
+  }
+
+  /* Equal-width pills that fill the row (keeps current gaps) */
+  .nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .nav-pill {
+    width: 100%;
+    justify-content: center;
+    font-size: 14px; /* slightly smaller on mobile to fit more text */
+  }
+}
+
+/* Desktop: bigger header title without a taller header */
+@media (min-width: 721px) {
+  .series-title-text {
+    font-size: 18px;
+    line-height: 1.05;
+  }
+}
 
 /* =================
    5) Global footer
@@ -390,7 +431,6 @@ th {
 }
 
 /* 2) All table cells: Event/Name left; everything else centered */
-
 td { text-align: center; }
 td[data-col="Event"],
 td[data-col="Name"] { text-align: left; }
@@ -408,7 +448,6 @@ tbody tr:hover td { background: #f2f8ff; }
 }
 
 /* Home page events tables (clean alignment, no row lines) */
-
 .events-section-title {
   background-color: #555;
   color: #fff;
@@ -605,7 +644,7 @@ select:focus-visible {
 
 .player-pdga {
   font-weight: 800;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--muted);
 }
 
@@ -654,36 +693,8 @@ select:focus-visible {
   }
 }
 
-/* Responsive header + controls */
+/* Responsive controls */
 @media (max-width: 720px) {
-  .site-header-inner {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 8px 14px;
-    gap: 10px;
-  }
-
-  .nav {
-    width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    gap: 8px;
-    padding-top: 4px;
-    padding-bottom: 6px;
-    margin-right: -4px;
-    padding-right: 4px;
-  }
-
-  .nav-pill {
-    height: 28px;
-    padding: 0 9px;
-    font-size: 12.5px;
-  }
-
-  .site-title-text,
-  .site-logo-text { font-size: 16px; }
-
   .page { padding: 16px; }
 
   input[type="text"],
@@ -717,12 +728,4 @@ select:focus-visible {
 
   /* Player: bigger CTA text while keeping button size */
   .player-page #goBtn { font-size: 16px; }
-}
-
-/* Desktop: bigger header title without a taller header */
-@media (min-width: 721px) {
-  .site-title-text {
-    font-size: 18px;
-    line-height: 1.05;
-  }
 }

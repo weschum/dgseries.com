@@ -1,4 +1,4 @@
-// /dgst/_shared/router.js
+// /dgseries.com/_shared/router.js
 (() => {
   "use strict";
 

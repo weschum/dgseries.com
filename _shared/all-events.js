@@ -1,4 +1,4 @@
-// /dgst/_shared/all-events.js
+// /dgseries.com/_shared/all-events.js
 (() => {
   "use strict";
 

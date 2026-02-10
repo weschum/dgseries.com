@@ -1,4 +1,4 @@
-// /dgst/js/series.config.js
+// /dgseries.com/<series-folder>/series.config.js
 // Optional per-deployment configuration.
 // Pages will work without this file, but if present it can override branding + theme.
 (() => {
@@ -12,10 +12,8 @@
     },
 
     branding: {
-      // Optional: set to "" to hide the logo spot.
-      logoText: "UPlay",
       // Header title (series-specific)
-      titleText: "2025-26 Winter Series",
+      titleText: "UPlay 2025-26 Winter Series",
     },
 
     theme: {

@@ -1,4 +1,4 @@
-// /dgst/_shared/index.js
+// /dgseries.com/_shared/index.js
 (() => {
   "use strict";
 

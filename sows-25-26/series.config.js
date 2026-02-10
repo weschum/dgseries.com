@@ -12,10 +12,8 @@
     },
 
     branding: {
-      // Optional: set to "" to hide the logo spot.
-      logoText: "SOWS",
       // Header title (series-specific)
-      titleText: "2025-2026",
+      titleText: "SOWS 2025-2026",
     },
 
     theme: {

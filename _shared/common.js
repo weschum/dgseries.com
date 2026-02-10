@@ -1,4 +1,4 @@
-// /dgst/js/common.js
+// /dgseries.com/_shared/common.js
 (() => {
   "use strict";
 
@@ -375,25 +375,14 @@
       });
 
       const branding = SERIES.branding || {};
-      const logoText = typeof branding.logoText === "string" ? branding.logoText.trim() : "";
       const titleText = typeof branding.titleText === "string" ? branding.titleText.trim() : "";
 
-      const logoEl = slot.querySelector("#siteLogo");
-      const logoTextEl = slot.querySelector("#siteLogoText");
-      const titleTextEl = slot.querySelector("#siteTitleText");
+      const titleTextEl = slot.querySelector("#seriesTitleText");
+      if (titleTextEl) {
+        // Prefer explicit branding.titleText; fall back to SERIES.name if you have it
+        titleTextEl.textContent = titleText || SERIES.name || "";
+   }
 
-      if (logoEl && logoTextEl) {
-        if (logoText) {
-          logoTextEl.textContent = logoText;
-          logoEl.style.display = "";
-        } else {
-          logoEl.style.display = "none";
-        }
-      }
-
-      if (titleTextEl && titleText) {
-        titleTextEl.textContent = titleText;
-      }
     } catch (e) {
       console.error(e);
       slot.innerHTML = "";
