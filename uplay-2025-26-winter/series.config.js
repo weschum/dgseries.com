@@ -23,7 +23,7 @@
       // Nav pill styling (optional)
       nav: {
         borderColor: "#2b5194",
-        borderWidthPx: 2,
+        borderWidthPx: 1,
         radiusPx: 8,
         fontWeight: 700,
       },
