@@ -126,10 +126,30 @@
     }
     els.resultsHead.appendChild(trh);
 
+        // Prefer event ordering from discovery context (already correctly sorted for the series).
+    // This avoids alphabetic issues on Player Stats.
+    const eventOrder = new Map();
+    if (ctx && Array.isArray(ctx.events) && ctx.events.length) {
+      let i = 0;
+      for (const ev of ctx.events) {
+        const label = String(ev.shortLabel || "").trim();
+        if (!label || eventOrder.has(label)) continue;
+        eventOrder.set(label, i++);
+      }
+    }
+
     const sorted = [...rows].sort((a, b) => {
-      const ea = String(a.Event || "");
-      const eb = String(b.Event || "");
+      const ea = String(a.Event || "").trim();
+      const eb = String(b.Event || "").trim();
+
+      const oa = eventOrder.has(ea) ? eventOrder.get(ea) : Number.POSITIVE_INFINITY;
+      const ob = eventOrder.has(eb) ? eventOrder.get(eb) : Number.POSITIVE_INFINITY;
+
+      if (oa !== ob) return oa - ob;
+
+      // Fallback: stable alphabetical if we don't know the event order
       if (ea !== eb) return ea.localeCompare(eb);
+
       const da = String(a.Division || "");
       const db = String(b.Division || "");
       return da.localeCompare(db);
