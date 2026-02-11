@@ -7,7 +7,13 @@
   function esc(s) {
     return window.Common && window.Common.escapeHtml
       ? window.Common.escapeHtml(String(s ?? ""))
-      : String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+      : String(s ?? "").replace(/[&<>"']/g, c => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[c]));
   }
 
   function renderEventsTable(title, rows) {
@@ -21,15 +27,15 @@
     }
 
     const body = rows.map(ev => {
-      const short = esc(ev.shortLabel || "");
-      const name  = esc(ev.pdgaName || "");
-      const url   = esc(ev.pdgaUrl || "#");
+      const name = esc(ev.pdgaName || "");
+      const url  = esc(ev.pdgaUrl || "#");
       const date = esc(ev.dateText || "");
       return `
         <tr>
-          <td class="col-short">${short}</td>
           <td class="col-date">${date}</td>
-          <td class="col-name"><a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a></td>
+          <td class="col-name">
+            <a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a>
+          </td>
         </tr>
       `;
     }).join("");
@@ -39,7 +45,6 @@
       <table class="events-table">
         <thead>
           <tr>
-            <th class="col-short">Short</th>
             <th class="col-date">Dates</th>
             <th class="col-name">PDGA Event</th>
           </tr>
@@ -50,12 +55,10 @@
   }
 
   async function init() {
-    // IMPORTANT: these must exist in the injected Home template
     const statusEl = document.getElementById("eventsStatus");
     const completedWrap = document.getElementById("eventsCompletedWrap");
     const upcomingWrap = document.getElementById("eventsUpcomingWrap");
 
-    // If the template doesn't include these, fail gracefully and show a clear message.
     if (!statusEl || !completedWrap || !upcomingWrap) {
       const missing = [
         !statusEl ? "eventsStatus" : null,
@@ -63,7 +66,6 @@
         !upcomingWrap ? "eventsUpcomingWrap" : null
       ].filter(Boolean).join(", ");
 
-      // Try to at least show something somewhere.
       const fallback = document.getElementById("view") || document.body;
       const msg = `DGST Home view template is missing required element id(s): ${missing}`;
       console.error(msg);
@@ -91,7 +93,10 @@
 
     let ctx;
     try {
-      ctx = await window.Common.getSeriesContext({ onStatus: setStatus, forceRefresh: false });
+      ctx = await window.Common.getSeriesContext({
+        onStatus: setStatus,
+        forceRefresh: false
+      });
     } catch (e) {
       console.error("getSeriesContext failed:", e);
       setStatus("Unable to discover events (error during fetch/parsing).");
@@ -101,6 +106,7 @@
     }
 
     const events = (ctx && ctx.events) ? ctx.events : [];
+
     if (!events.length) {
       setStatus("No events found for this seed search.");
       completedWrap.innerHTML = `<div class="empty">No events found.</div>`;
@@ -109,12 +115,12 @@
     }
 
     const completed = events.filter(e => !!e.isCompleted);
-    const upcoming = events.filter(e => !e.isCompleted);
+    const upcoming  = events.filter(e => !e.isCompleted);
 
     setStatus(`${events.length} event(s) found.`);
 
     completedWrap.innerHTML = renderEventsTable("Completed", completed);
-    upcomingWrap.innerHTML = renderEventsTable("Upcoming", upcoming);
+    upcomingWrap.innerHTML  = renderEventsTable("Upcoming", upcoming);
   }
 
   window.DGSTViews.home = { init };

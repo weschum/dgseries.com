@@ -40,22 +40,9 @@
 
     // Naming rules (series-specific). common.js must not hard-code series names.
     naming: {
-      // Build a short event label from PDGA event name.
-      // This series uses the keyword "sows" with an optional number.
-      eventShortLabel: {
-        type: "keywordNumber",
-        keyword: "sows",
-        outputPrefix: "SOWS",
-        maxNumber: 99,
-      },
-
-      // Show events in chronological order (oldest -> newest) using PDGA "Dates".
-      sortByDate: true,
-
-      // (Optional fallback / still useful for series with numbers)
-      sortByPrefixNumber: {
-        prefix: "SOWS",
-      },
+      // optional tuning; you can omit entirely
+      shortLabelMaxWords: 4,
+      shortLabelStopWords: ["sows", "2025-26", "2025-2026"],
     },
 
     scoring: {

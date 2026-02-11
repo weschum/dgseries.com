@@ -309,7 +309,76 @@
       }
     }
 
-    // Default fallback: first word of the PDGA name
+    // --- New default: derive a descriptive label from the "course/location" part of the PDGA name ---
+    const maxWords = Number.isFinite(Number(naming.shortLabelMaxWords)) ? Number(naming.shortLabelMaxWords) : 2;
+
+    const stop = new Set(
+      (Array.isArray(naming.shortLabelStopWords) ? naming.shortLabelStopWords : []).map(x => String(x).toLowerCase())
+        .concat([
+          // generic tournament words
+          "disc","rated","unrated","golf","dg","tournament","series","league","weekly","week","wk","event","stop","round",
+          "open","classic","challenge","cup","shootout","showdown","championship","fundraiser","charity",
+          "presented","by","at","@", "of", "the", "and", "in", "on", "for",
+          // common season markers
+          "spring","summer","fall","autumn","winter","tour","saturday","sunday"
+        ])
+    );
+
+    // try to remove obvious series prefix words (series name tokens)
+    const seriesTitle = cleanText((SERIES.branding && SERIES.branding.titleText) || SERIES.name || "");
+    const seriesTokens = seriesTitle.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const t of seriesTokens) stop.add(t);
+
+    function titleCaseWord(w) {
+      if (!w) return "";
+      // preserve acronyms like "PDGA", "UPlay"
+      if (w.toUpperCase() === w && w.length <= 6) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    }
+
+    function makeLabelFromSegment(seg) {
+      seg = cleanText(seg || "");
+      if (!seg) return "";
+
+      // remove parenthetical clutter but keep meaning if it's all we have
+      seg = seg.replace(/\s*\([^)]*\)\s*/g, " ").trim();
+
+      const words = seg
+        .split(/\s+/)
+        .map(w => w.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, "")) // trim punctuation
+        .filter(Boolean);
+
+      const kept = [];
+      for (const w of words) {
+        const lw = w.toLowerCase();
+        if (stop.has(lw)) continue;
+        // avoid pure numbers (week numbers etc)
+        if (/^\d+$/.test(lw)) continue;
+        kept.push(w);
+        if (kept.length >= maxWords) break;
+      }
+
+      if (!kept.length) return "";
+
+      return kept.map(titleCaseWord).join(" ");
+    }
+
+    // Prefer the "rightmost" location-ish segment:
+    // Examples:
+    // "UPlay Winter Series #3 - Ardenwood Park" -> "Ardenwood Park"
+    // "… @ Schwarz Campground" -> "Schwarz Campground"
+    const parts = s.split(/\s*(?:[-–—]|@|\bat\b|:|\|)\s*/i).map(p => p.trim()).filter(Boolean);
+    // Try from right-to-left and take the first that yields a meaningful label.
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const candidate = makeLabelFromSegment(parts[i]);
+      if (candidate) return candidate;
+    }
+
+    // Fallback: first meaningful words from the full name (after stopword removal)
+    const fallback = makeLabelFromSegment(s);
+    if (fallback) return fallback;
+
+    // Last resort: first word
     return s.split(/\s+/)[0] || s;
   }
 

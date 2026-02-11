@@ -339,6 +339,7 @@ button {
 }
 
 button {
+  appearance: none;
   padding: 10px 14px;
   background: #00ff3b;
   cursor: pointer;
@@ -389,7 +390,12 @@ select {
   font-size: 14px;
 }
 
-input[type="search"] { -webkit-appearance: none; }
+input[type="search"] {
+  appearance: none;           /* standard */
+  -webkit-appearance: none;   /* Safari / older WebKit */
+}
+
+
 
 /* =========================
    8) Tables / Empty state
@@ -498,15 +504,8 @@ tbody tr:hover td { background: #f2f8ff; }
   white-space: normal;
 }
 
-.events-table .col-short {
-  text-align: left;
-  padding: 6px;
-  width: 92px;
-  white-space: nowrap;
-  font-weight: 900;
-}
-
 .events-table .col-date {
+  width: 140px;
   padding: 6px;
   text-align: left;
 }

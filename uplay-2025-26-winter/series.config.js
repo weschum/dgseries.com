@@ -34,19 +34,9 @@
 
     // Naming rules (series-specific). common.js must not hard-code series names.
     naming: {
-      // Build a short event label from PDGA event name.
-      // This series uses the keyword "uplay" with an optional number.
-      eventShortLabel: {
-        type: "keywordNumber",
-        keyword: "uplay",
-        outputPrefix: "UPlay",
-        maxNumber: 99,
-      },
-
-      // Sort events by the numeric suffix in the short label when present.
-      sortByPrefixNumber: {
-        prefix: "UPlay",
-      },
+      // optional tuning; you can omit entirely
+      shortLabelMaxWords: 2,
+      shortLabelStopWords: ["uplay", "2025-26", "2025-2026"],
     },
 
     scoring: {
