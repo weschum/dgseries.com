@@ -24,7 +24,6 @@
       nav: {
         borderColor: "#2b5194",
         borderWidthPx: 1,
-        radiusPx: 8,
         fontWeight: 700,
       },
     },
