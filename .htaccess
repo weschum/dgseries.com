@@ -1,0 +1,26 @@
+# /.htaccess  (domain root)
+
+<IfModule mod_headers.c>
+
+  # 1) Always revalidate HTML shells (root + all series /index.html)
+  <FilesMatch "^index\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # Optional: also revalidate any other html pages
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # 2) Shared runtime assets should revalidate so deploys take effect without hard refresh
+  <LocationMatch "^/_shared/.*\.(js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </LocationMatch>
+
+  # 3) The PDGA proxy should never be cached by the browser
+  <Files "pdga-proxy.php">
+    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header set Pragma "no-cache"
+  </Files>
+
+</IfModule>

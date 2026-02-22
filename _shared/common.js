@@ -150,13 +150,16 @@
   };
 
   const CACHE = {
-    VERSION: 14, // ✅ bump to invalidate cached results payloads (was 12)
+    // Use the global build string for cache versioning.
+    // Bump ONE place: /_shared/version.js (window.SITE_BUILD)
+    VERSION: BUILD,
 
-    // All cache/storage keys MUST be namespaced by series to avoid cross-series data leakage.
-    KEY_RESULTS: `dgst:${SERIES_ID}:cache:allEvents:pdga`,
+    // All cache/storage keys MUST be namespaced by series AND build.
+    // This guarantees client caches invalidate automatically after a deploy.
+    KEY_RESULTS: `dgst:${SERIES_ID}:${BUILD}:cache:allEvents:pdga`,
     TTL_RESULTS_MS: 15 * 60 * 1000,
 
-    KEY_SERIES_CTX: `dgst:${SERIES_ID}:cache:seriesContext`,
+    KEY_SERIES_CTX: `dgst:${SERIES_ID}:${BUILD}:cache:seriesContext`,
     TTL_SERIES_CTX_MS: 6 * 60 * 60 * 1000,
   };
 
@@ -211,7 +214,6 @@
   window.Common.SERIES_ID = SERIES_ID;
   window.Common.SERIES_BASE_PATH = SERIES_BASE_PATH;
   window.Common.PLATFORM_BASE_PATH = PLATFORM_BASE_PATH;
-  window.Common.SHARED_BASE_PATH = SHARED_BASE_PATH;
   window.Common.SHARED_BASE_PATH = SHARED_BASE_PATH;
 
   window.Common.escapeHtml = function escapeHtml(s) {

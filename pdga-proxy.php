@@ -91,20 +91,29 @@ function write_cache($cacheFile, $metaFile, $body) {
 $cached = read_cache($cacheFile, $metaFile);
 $now = time();
 
-function send_html($body, $cacheHeader) {
+$cacheAgeSeconds = ($cached) ? ($now - $cached['time']) : -1;
+
+function send_html($body, $cacheHeader, $cacheAgeSeconds = -1) {
   header('Access-Control-Allow-Origin: *');
   header('Access-Control-Allow-Methods: GET, OPTIONS');
   header('Access-Control-Allow-Headers: Content-Type');
-  header('Cache-Control: public, max-age=60');
+
+  // Never let the browser cache proxy responses.
+  header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+  header('Pragma: no-cache');
+  header('Expires: 0');
+
   header('Content-Type: text/html; charset=utf-8');
   header('X-DGST-Cache: ' . $cacheHeader);
+  header('X-DGST-Cache-Age: ' . $cacheAgeSeconds);
+
   echo $body;
   exit;
 }
 
 // Serve fresh cache immediately if within TTL
 if ($cached && ($now - $cached['time'] <= $ttlFreshSeconds)) {
-  send_html($cached['body'], 'HIT');
+  send_html($cached['body'], 'HIT', $cacheAgeSeconds);
 }
 
 // ---- fetch upstream ----
@@ -115,7 +124,7 @@ if (!function_exists('curl_init')) {
       'method' => 'GET',
       'timeout' => $TIMEOUT,
       'header' =>
-        "User-Agent: dgst-proxy/1.0 (+https://chumworx.com/dgst)\r\n" .
+        "User-Agent: dgst-proxy/1.0 (Disc Golf Series Tracker; https://dgseries.com)\r\n" .
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" .
         "Accept-Language: en-US,en;q=0.8\r\n"
     )
@@ -123,7 +132,7 @@ if (!function_exists('curl_init')) {
   $data = @file_get_contents($url, false, $ctx);
   if ($data === false) {
     if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-      send_html($cached['body'], 'STALE (no curl)');
+      send_html($cached['body'], 'STALE (no curl)', $cacheAgeSeconds);
     }
     http_response_code(502);
     header('Content-Type: text/plain; charset=utf-8');
@@ -139,7 +148,7 @@ if (!function_exists('curl_init')) {
   }
 
   write_cache($cacheFile, $metaFile, $data);
-  send_html($data, 'MISS (no curl)');
+  send_html($data, 'MISS (no curl)', $cacheAgeSeconds);
 }
 
 // cURL path
@@ -150,7 +159,7 @@ curl_setopt_array($ch, array(
   CURLOPT_MAXREDIRS      => 3,
   CURLOPT_TIMEOUT        => $TIMEOUT,
   CURLOPT_CONNECTTIMEOUT => 8,
-  CURLOPT_USERAGENT      => 'dgst-proxy/1.0 (+https://chumworx.com/dgst)',
+  CURLOPT_USERAGENT      => 'dgst-proxy/1.0 (Disc Golf Series Tracker; https://dgseries.com)',
   CURLOPT_HTTPHEADER     => array(
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language: en-US,en;q=0.8'
@@ -165,7 +174,7 @@ curl_close($ch);
 
 if ($data === false) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (curl error)');
+    send_html($cached['body'], 'STALE (curl error)', $cacheAgeSeconds);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -183,7 +192,7 @@ if (strlen($data) > $MAX_BYTES) {
 // If rate limited, serve cached if available
 if ((int)$code === 429) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (429)');
+    send_html($cached['body'], 'STALE (429)', $cacheAgeSeconds);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -194,7 +203,7 @@ if ((int)$code === 429) {
 // Other non-2xx => serve cache if possible
 if ((int)$code < 200 || (int)$code >= 300) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (http error)');
+    send_html($cached['body'], 'STALE (http error)', $cacheAgeSeconds);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -204,4 +213,4 @@ if ((int)$code < 200 || (int)$code >= 300) {
 
 // Cache successful response and return it
 write_cache($cacheFile, $metaFile, $data);
-send_html($data, 'MISS');
+send_html($data, 'MISS', 0);
