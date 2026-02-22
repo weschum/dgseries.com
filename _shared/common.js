@@ -595,17 +595,25 @@
       const name = cleanText(a.textContent);
       if (!name) continue;
 
-      // Completed detection: check for "official tournament results" icon/text anywhere in the row.
+      // Completed detection: check for "official" OR "unofficial tournament results" icon/text anywhere in the row.
       const statusImgs = Array.from(tr.querySelectorAll("img"));
       const rowText = cleanText(tr.textContent).toLowerCase();
 
-      const hasOfficialIcon = statusImgs.some(img => {
+      const hasResultsIcon = statusImgs.some(img => {
         const alt = String(img.getAttribute("alt") || "").toLowerCase();
         const title = String(img.getAttribute("title") || "").toLowerCase();
-        return alt.includes("official tournament results") || title.includes("official tournament results");
+        return (
+          alt.includes("official tournament results") ||
+          title.includes("official tournament results") ||
+          alt.includes("unofficial tournament results") ||
+          title.includes("unofficial tournament results")
+        );
       });
 
-      const isCompleted = hasOfficialIcon || rowText.includes("official tournament results");
+      const isCompleted =
+        hasResultsIcon ||
+        rowText.includes("official tournament results") ||
+        rowText.includes("unofficial tournament results");
 
       // Dates
       let dateText = "";
