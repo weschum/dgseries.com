@@ -87,6 +87,41 @@
       return;
     }
 
+    // Inject Refresh button on Home view (above the status line)
+    (() => {
+      try {
+        if (document.getElementById("pdgaRefreshBtn")) return;
+
+        const wrap = document.createElement("div");
+        wrap.className = "home-refresh";
+        wrap.innerHTML = `
+          <button id="pdgaRefreshBtn" class="btn-refresh" type="button" title="Refresh PDGA data">
+            Refresh PDGA Data
+          </button>
+        `;
+
+        // Place it right above the status line
+        statusEl.parentElement.insertBefore(wrap, statusEl);
+
+        const btn = document.getElementById("pdgaRefreshBtn");
+        if (btn) {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (window.Common && typeof window.Common.triggerPdgaRefresh === "function") {
+              window.Common.triggerPdgaRefresh();
+            } else {
+              // fallback: reload with force=1
+              const u = new URL(location.href);
+              u.searchParams.set("force", "1");
+              location.href = u.toString();
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Unable to inject PDGA refresh button:", err);
+      }
+    })();
+
     const setStatus = (msg) => { statusEl.textContent = msg || ""; };
 
     setStatus("Discovering events from PDGA…");

@@ -164,9 +164,21 @@
   };
 
   if (FORCE_REFRESH) {
+    // Clear client-side cache
     try {
       sessionStorage.removeItem(CACHE.KEY_RESULTS);
       sessionStorage.removeItem(CACHE.KEY_SERIES_CTX);
+    } catch {}
+
+    // Keep URLs clean: remove ?force=1 after the page loads.
+    try {
+      setTimeout(() => {
+        const u = new URL(location.href);
+        if (u.searchParams.has("force")) {
+          u.searchParams.delete("force");
+          history.replaceState(null, "", u.pathname + u.search + u.hash);
+        }
+      }, 0);
     } catch {}
   }
 
@@ -202,15 +214,12 @@
     return await res.text();
   }
 
-  function fetchViaProxy(targetUrl) {
-    const force = FORCE_REFRESH ? "&force=1" : "";
-    const url =
-      DATA.PDGA.PROXY_PREFIX +
-      encodeURIComponent(String(targetUrl || "")) +
-      force;
+  function fetchViaProxy(targetUrl, { forceRefresh } = {}) {
+    // When forcing refresh, also bust the server-side proxy disk cache.
+    const force = (FORCE_REFRESH || !!forceRefresh) ? "&force=1" : "";
+    const url = DATA.PDGA.PROXY_PREFIX + encodeURIComponent(String(targetUrl || "")) + force;
     return fetchText(url);
   }
-
   window.Common = window.Common || {};
   window.Common.BUILD = BUILD;
   window.Common.DATA = DATA;
@@ -219,6 +228,18 @@
   window.Common.SERIES_BASE_PATH = SERIES_BASE_PATH;
   window.Common.PLATFORM_BASE_PATH = PLATFORM_BASE_PATH;
   window.Common.SHARED_BASE_PATH = SHARED_BASE_PATH;
+
+  // Manual refresh entry point (used by the header button).
+  // Avoids constant fresh pulls (throttling risk) while making refresh easy on demand.
+  window.Common.triggerPdgaRefresh = function triggerPdgaRefresh() {
+    try {
+      const u = new URL(location.href);
+      u.searchParams.set("force", "1");
+      location.href = u.toString();
+    } catch {
+      location.reload();
+    }
+  };
 
   window.Common.escapeHtml = function escapeHtml(s) {
     return String(s ?? "")
@@ -1031,14 +1052,14 @@
     return outRows;
   }
 
-  async function fetchEventResultsRows(ev, { onStatus } = {}) {
+  async function fetchEventResultsRows(ev, { onStatus, forceRefresh } = {}) {
     const shortLabel = String(ev.shortLabel || "").trim();
     const url = String(ev.pdgaUrl || "").trim();
     if (!shortLabel || !url) return [];
 
     onStatus && onStatus(`Fetching results: ${shortLabel}…`);
 
-    const html = await fetchViaProxy(url);
+    const html = await fetchViaProxy(url, { forceRefresh: !!forceRefresh });
     const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
 
     const nodes = Array.from(doc.querySelectorAll("h1,h2,h3,h4,h5,table"));
@@ -1100,7 +1121,7 @@
     const allRows = [];
     for (const ev of completedEvents) {
       try {
-        const rows = await fetchEventResultsRows(ev, { onStatus });
+        const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: !!forceRefresh });
         for (const r of rows) allRows.push(r);
       } catch (e) {
         console.warn("Failed to load event results:", ev, e);

@@ -228,6 +228,13 @@ a { color: #000; }
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Allow nav pill styling on buttons (e.g., Refresh) */
+.nav button.nav-pill {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .nav-pill:hover { transform: translateY(-1px); opacity: 0.95; }
 .nav-pill:active { transform: translateY(0px); opacity: 0.9; }
 .nav-pill.is-active { background: var(--accent); }
