@@ -55,7 +55,6 @@
     }
   })();
 
-
   // Back-compat: keep the old name pointing at the series base.
   const BASE_PATH = SERIES_BASE_PATH;
 
@@ -163,7 +162,125 @@
     TTL_SERIES_CTX_MS: 6 * 60 * 60 * 1000,
   };
 
+  // ===== Refresh tracking (timestamp + pending refresh state) =====
+  const REFRESH = {
+    // Pending refresh flag lives in sessionStorage so it naturally clears when the tab dies.
+    KEY_PENDING: `dgst:${SERIES_ID}:refreshPending`,
+    // Collected fetch times during a pending refresh (session-scoped).
+    KEY_TIMES: `dgst:${SERIES_ID}:refreshFetchTimes`,
+    // Last successful refresh timestamp should survive reloads.
+    KEY_LAST_MS: `dgst:${SERIES_ID}:lastRefreshMs`,
+  };
+
+  function safeJsonParse(s) {
+    try { return JSON.parse(s); } catch { return null; }
+  }
+
+  function isRefreshPending() {
+    try { return sessionStorage.getItem(REFRESH.KEY_PENDING) === "1"; }
+    catch { return false; }
+  }
+
+  function setRefreshPending() {
+    try {
+      sessionStorage.setItem(REFRESH.KEY_PENDING, "1");
+      sessionStorage.removeItem(REFRESH.KEY_TIMES);
+    } catch {}
+  }
+
+  function clearRefreshPending() {
+    try {
+      sessionStorage.removeItem(REFRESH.KEY_PENDING);
+      sessionStorage.removeItem(REFRESH.KEY_TIMES);
+    } catch {}
+  }
+
+  function recordRefreshFetchTime(ms) {
+    if (!isRefreshPending()) return;
+    if (!Number.isFinite(ms) || ms <= 0) return;
+
+    try {
+      const raw = sessionStorage.getItem(REFRESH.KEY_TIMES);
+      const arr = Array.isArray(safeJsonParse(raw)) ? safeJsonParse(raw) : [];
+      arr.push(ms);
+      // keep small
+      const trimmed = arr.slice(-100);
+      sessionStorage.setItem(REFRESH.KEY_TIMES, JSON.stringify(trimmed));
+    } catch {}
+  }
+
+  function getMaxRecordedRefreshMs() {
+    try {
+      const raw = sessionStorage.getItem(REFRESH.KEY_TIMES);
+      const arr = Array.isArray(safeJsonParse(raw)) ? safeJsonParse(raw) : [];
+      const nums = arr.map(n => Number(n)).filter(n => Number.isFinite(n) && n > 0);
+      if (!nums.length) return null;
+      return Math.max(...nums);
+    } catch {
+      return null;
+    }
+  }
+
+  function setLastRefreshMs(ms) {
+    try { localStorage.setItem(REFRESH.KEY_LAST_MS, String(ms)); } catch {}
+  }
+
+  function getLastRefreshMs() {
+    try {
+      const v = localStorage.getItem(REFRESH.KEY_LAST_MS);
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function formatLastRefresh(ms) {
+    if (!Number.isFinite(ms) || ms <= 0) return "";
+    const d = new Date(ms);
+    const MM = pad2(d.getMonth() + 1);
+    const DD = pad2(d.getDate());
+    const YY = pad2(d.getFullYear() % 100);
+    const hh = pad2(d.getHours());
+    const mm = pad2(d.getMinutes());
+    return `${MM}/${DD}/${YY} ${hh}:${mm}`;
+  }
+
+  function emitRefreshUpdated() {
+    try {
+      window.dispatchEvent(new CustomEvent("dgst:refresh-updated", { detail: { seriesId: SERIES_ID } }));
+    } catch {}
+  }
+
+  function finalizePdgaRefreshIfPending() {
+    // Commit timestamp ONLY after the app has successfully completed the refresh cycle.
+    if (!isRefreshPending()) return false;
+
+    const ms = getMaxRecordedRefreshMs() || Date.now();
+    setLastRefreshMs(ms);
+    clearRefreshPending();
+    emitRefreshUpdated();
+    return true;
+  }
+
+  // Expose refresh timestamp helpers
+  window.Common = window.Common || {};
+  window.Common.getLastRefreshMs = getLastRefreshMs;
+  window.Common.getLastRefreshText = function getLastRefreshText() {
+    const ms = getLastRefreshMs();
+    if (!ms) return "Last refresh: —";
+    return "Last refresh: " + formatLastRefresh(ms);
+  };
+  window.Common.formatLastRefresh = formatLastRefresh;
+  window.Common.finalizePdgaRefreshIfPending = finalizePdgaRefreshIfPending;
+
   if (FORCE_REFRESH) {
+    // Mark a refresh as pending (this is what makes the timestamp represent a SUCCESSFUL fetch cycle,
+    // not just a page reload).
+    setRefreshPending();
+
     // Clear client-side cache
     try {
       sessionStorage.removeItem(CACHE.KEY_RESULTS);
@@ -209,8 +326,24 @@
   }
 
   async function fetchText(url) {
+    // NOTE: cache:"no-store" avoids browser HTTP cache interfering with proxy logic.
     const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Fetch failed (${res.status}) for ${url}`);
+
+    // Capture proxy-provided fetch time (seconds) for refresh timestamping.
+    // For cache hits, this is the cache meta time; for misses it’s the time of fetch.
+    try {
+      const ft = res.headers.get("X-DGST-Fetch-Time");
+      const sec = Number(ft);
+      if (Number.isFinite(sec) && sec > 0) recordRefreshFetchTime(sec * 1000);
+    } catch {}
+
+    if (!res.ok) {
+      // Read response body (often plain text from proxy) for clearer errors.
+      let body = "";
+      try { body = await res.text(); } catch {}
+      const detail = body ? ` - ${body}` : "";
+      throw new Error(`Fetch failed (${res.status}) for ${url}${detail}`);
+    }
     return await res.text();
   }
 
@@ -220,7 +353,8 @@
     const url = DATA.PDGA.PROXY_PREFIX + encodeURIComponent(String(targetUrl || "")) + force;
     return fetchText(url);
   }
-  window.Common = window.Common || {};
+
+  // Fill Common exports (keep these near top for other modules)
   window.Common.BUILD = BUILD;
   window.Common.DATA = DATA;
   window.Common.SERIES_CONFIG = SERIES;
@@ -233,6 +367,10 @@
   // Avoids constant fresh pulls (throttling risk) while making refresh easy on demand.
   window.Common.triggerPdgaRefresh = function triggerPdgaRefresh() {
     try {
+      // Ensure refresh pending is set immediately so the next load knows
+      // to commit the timestamp only after success.
+      setRefreshPending();
+
       const u = new URL(location.href);
       u.searchParams.set("force", "1");
       location.href = u.toString();
@@ -391,11 +529,7 @@
     }
 
     // Prefer the "rightmost" location-ish segment:
-    // Examples:
-    // "UPlay Winter Series #3 - Ardenwood Park" -> "Ardenwood Park"
-    // "… @ Schwarz Campground" -> "Schwarz Campground"
     const parts = s.split(/\s*(?:[-–—]|@|\bat\b|:|\|)\s*/i).map(p => p.trim()).filter(Boolean);
-    // Try from right-to-left and take the first that yields a meaningful label.
     for (let i = parts.length - 1; i >= 0; i--) {
       const candidate = makeLabelFromSegment(parts[i]);
       if (candidate) return candidate;
@@ -409,13 +543,6 @@
     return s.split(/\s+/)[0] || s;
   }
 
-  // Ensure event short labels are UNIQUE within a series context.
-  // If multiple events resolve to the same base label (e.g., "SOWS"),
-  // assign a stable numeric suffix in the current discovery order:
-  // "SOWS1", "SOWS2", ...
-  //
-  // This prevents collisions in eventUrlByShort and makes short labels reliable
-  // even when PDGA names do not contain numbers.
   function ensureUniqueShortLabels(events) {
     const counts = new Map();
     for (const ev of events) {
@@ -455,7 +582,6 @@
     if (!slot) return;
 
     try {
-      // Multi-series: header lives in shared assets. Legacy fallback: series root.
       const primaryUrl = `${SHARED_BASE_PATH}/header.html?v=${encodeURIComponent(BUILD)}`;
       const fallbackUrl = `${BASE_PATH}/header.html?v=${encodeURIComponent(BUILD)}`;
       let res = await fetch(primaryUrl, { cache: "no-store" });
@@ -475,16 +601,15 @@
 
       const titleTextEl = slot.querySelector("#seriesTitleText");
       if (titleTextEl) {
-        // Prefer explicit branding.titleText; fall back to SERIES.name if you have it
         titleTextEl.textContent = titleText || SERIES.name || "";
-   }
+      }
 
     } catch (e) {
       console.error(e);
       slot.innerHTML = "";
     }
   };
-  
+
   window.Common.loadFooter = async function loadFooter() {
     const slot = document.getElementById("footer-slot");
     if (!slot) return;
@@ -517,9 +642,6 @@
 
   function sortEventsSmart(events) {
     const naming = SERIES.naming || {};
-
-    // If enabled per-series, sort oldest -> newest using discovered startDate.
-    // Keeps baseline unchanged unless a series opts in.
     const sortByDate = !!naming.sortByDate;
 
     if (sortByDate) {
@@ -532,7 +654,6 @@
         if (am != null && bm == null) return -1;
         if (am == null && bm != null) return 1;
 
-        // Stable tie-breakers
         const ai = String(a.pdgaEventId || "");
         const bi = String(b.pdgaEventId || "");
         if (ai && bi && ai !== bi) return ai.localeCompare(bi);
@@ -542,7 +663,6 @@
       return list;
     }
 
-    // Default behavior: prefix-number sorting (existing baseline)
     const sortCfg = naming.sortByPrefixNumber || {};
     const prefix = String(sortCfg.prefix || "").trim();
 
@@ -570,7 +690,6 @@
     const raw = cleanText(dateText);
     if (!raw) return { startMs: null, endMs: null, dateText: "" };
 
-    // PDGA often uses "Month D, YYYY - Month D, YYYY" (sometimes with an en-dash).
     const parts = raw.split(/\s*(?:-|–|—)\s*/).map(s => s.trim()).filter(Boolean);
 
     const start = parts[0] || raw;
@@ -587,7 +706,6 @@
   }
 
   function findDatesColumnIndex(tableEl) {
-    // Try to locate a "Dates" / "Date" column by header text.
     const ths = Array.from(tableEl.querySelectorAll("thead th"));
     if (!ths.length) return -1;
 
@@ -601,7 +719,6 @@
   function parseEventsFromSeedHtml(html) {
     const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
 
-    // Find the table that actually contains event links.
     const tables = Array.from(doc.querySelectorAll("table"));
     const table = tables.find(t => t.querySelector('a[href*="/tour/event/"]')) || doc.querySelector("table");
     const rows = table ? Array.from(table.querySelectorAll("tbody tr")) : Array.from(doc.querySelectorAll("table tbody tr"));
@@ -622,7 +739,6 @@
       const name = cleanText(a.textContent);
       if (!name) continue;
 
-      // Completed detection: check for "official" OR "unofficial tournament results" icon/text anywhere in the row.
       const statusImgs = Array.from(tr.querySelectorAll("img"));
       const rowText = cleanText(tr.textContent).toLowerCase();
 
@@ -642,7 +758,6 @@
         rowText.includes("official tournament results") ||
         rowText.includes("unofficial tournament results");
 
-      // Dates
       let dateText = "";
       let startMs = null;
       let endMs = null;
@@ -683,9 +798,10 @@
 
   window.Common.getSeriesContext = async function getSeriesContext({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
+    const forcing = !!(FORCE_REFRESH || forceRefresh);
 
-    // FORCE_REFRESH via ?force=1 already cleared cache keys; also skip reading cache.
-    if (!FORCE_REFRESH && !forceRefresh) {
+    // Skip reading cache if forcing.
+    if (!forcing) {
       const cached = cacheOn ? cacheGet(CACHE.KEY_SERIES_CTX, CACHE.TTL_SERIES_CTX_MS) : null;
       if (cached) return cached;
     }
@@ -695,14 +811,13 @@
     try {
       const byId = new Map();
 
-      // Fetch all seed pages, parse, then merge/dedupe by PDGA event id.
       const seeds = Array.isArray(DATA.PDGA.SEED_URLS) ? DATA.PDGA.SEED_URLS : [DATA.PDGA.SEED_URL];
 
       for (let i = 0; i < seeds.length; i++) {
         const seed = seeds[i];
         onStatus && onStatus(`Fetching PDGA series listing… (${i + 1}/${seeds.length})`);
 
-        const html = await fetchViaProxy(seed);
+        const html = await fetchViaProxy(seed, { forceRefresh: forcing });
         const parsed = parseEventsFromSeedHtml(html);
 
         for (const ev of parsed) {
@@ -714,7 +829,6 @@
             continue;
           }
 
-          // Merge policy: prefer completed=true, keep date if missing, keep first url/name/shortLabel.
           const existing = byId.get(id);
           existing.isCompleted = !!(existing.isCompleted || ev.isCompleted);
 
@@ -729,13 +843,8 @@
       }
 
       const events = sortEventsSmart(Array.from(byId.values()));
-
-      // IMPORTANT: make short labels unique AFTER sorting, so numbering is stable.
-      // For SOWS (sortByDate=true), this yields chronological numbering.
       ensureUniqueShortLabels(events);
 
-      // Guardrail: detect duplicate short labels.
-      // In debug mode (?debug=1), disambiguate collisions by appending -<eventId>.
       const byLabel = new Map();
       for (const ev of events) {
         const k = String(ev.shortLabel || "").trim();
@@ -763,7 +872,6 @@
         const k = String(ev.shortLabel || "").trim();
         if (!k) continue;
 
-        // Prefer mapping to completed events if a collision occurs.
         if (ev.pdgaUrl) {
           if (!eventUrlByShort[k]) {
             eventUrlByShort[k] = ev.pdgaUrl;
@@ -777,12 +885,8 @@
         if (ev.pdgaName && !eventNameByShort[k]) eventNameByShort[k] = ev.pdgaName;
       }
 
-      if (DEBUG) {
-        console.log("[DGST] eventUrlByShort:", eventUrlByShort);
-      }
-
       const ctx = {
-        seedUrl: DATA.PDGA.SEED_URL,          // back-compat
+        seedUrl: DATA.PDGA.SEED_URL,
         seedUrls: DATA.PDGA.SEED_URLS || [DATA.PDGA.SEED_URL],
         builtAt: Date.now(),
         events,
@@ -795,6 +899,12 @@
       onStatus && onStatus(`Found ${events.length} event(s) from PDGA.`);
       return ctx;
     } catch (e) {
+      // IMPORTANT: forcing refresh must never silently fall back to stale.
+      if (forcing) {
+        onStatus && onStatus("PDGA discovery failed (refresh aborted).");
+        throw e;
+      }
+
       console.warn("Series context discovery failed:", e);
       onStatus && onStatus("PDGA discovery failed (using cached data if available).");
       const cached = cacheOn ? cacheGet(CACHE.KEY_SERIES_CTX, CACHE.TTL_SERIES_CTX_MS) : null;
@@ -845,7 +955,6 @@
 
     const scoring = SERIES.scoring || {};
 
-    // Custom override (for complex series)
     if (typeof scoring.pointsFromPlace === "function") {
       try {
         const v = scoring.pointsFromPlace(placeText, n);
@@ -856,26 +965,21 @@
       }
     }
 
-    // Declarative rule (recommended)
     const rule = scoring.points || {};
     if (String(rule.type || "").toLowerCase() === "linear") {
       const base = Number(rule.base);
       if (Number.isFinite(base)) return String(Math.max(0, base - n));
     }
 
-    // Default fallback
     return String(Math.max(0, 101 - n));
   }
 
-  // Find a header row even if it's <td> inside tbody
   function findHeaderInfo(tableEl) {
-    // 1) Standard case: thead th
     const theadThs = Array.from(tableEl.querySelectorAll("thead th"));
     if (theadThs.length) {
       return { headerRow: null, headerCells: theadThs };
     }
 
-    // 2) Search for a row whose cells look like headers
     const trs = Array.from(tableEl.querySelectorAll("tr"));
     for (const tr of trs) {
       const cells = Array.from(tr.querySelectorAll("th,td"));
@@ -917,7 +1021,6 @@
       const raw = cleanText(cell.textContent);
       let key = raw;
 
-      // Headerless rating columns (blank) immediately after RdN
       if (!key) {
         const m = lastRound.match(/^Rd(\d+)$/i);
         if (m) key = `Rd${m[1]} rating`;
@@ -931,28 +1034,21 @@
     return keys;
   }
 
-
   function inferMissingRatingKeys(keys, targetLen) {
-    // PDGA sometimes omits blank header cells for the hidden round-rating columns.
-    // If body rows contain extra cells, try inserting "RdN rating" after each "RdN".
     let out = keys.slice();
     if (!Number.isFinite(targetLen) || targetLen <= out.length) return out;
 
-    // Insert at most one rating column per round (Rd1..Rd9) until we match.
     for (let round = 1; round <= 9 && out.length < targetLen; round++) {
       const rdKey = `Rd${round}`;
       const ratingKey = `Rd${round} rating`;
 
       const rdIdx = out.indexOf(rdKey);
       if (rdIdx === -1) continue;
-
-      // Already present anywhere? If so, skip inserting.
       if (out.includes(ratingKey)) continue;
 
       out.splice(rdIdx + 1, 0, ratingKey);
     }
 
-    // If still short, pad with empty keys so we don't mis-align earlier columns.
     while (out.length < targetLen) out.push("");
     return out;
   }
@@ -985,18 +1081,14 @@
     let keys = buildHeaderKeysFromInfo(headerCells);
     if (!keys.length) return [];
 
-    // If the header is missing the hidden round-rating columns, infer them from body row width.
     try {
       const probeTr = tableEl.querySelector("tbody tr") || tableEl.querySelector("tr");
       const probeTds = probeTr ? Array.from(probeTr.querySelectorAll("td")) : [];
       if (probeTds.length && probeTds.length > keys.length) {
         keys = inferMissingRatingKeys(keys, probeTds.length);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
 
-    // Prefer tbody rows; else all rows
     const trs = Array.from(tableEl.querySelectorAll("tbody tr")).length
       ? Array.from(tableEl.querySelectorAll("tbody tr"))
       : Array.from(tableEl.querySelectorAll("tr"));
@@ -1004,10 +1096,7 @@
     const outRows = [];
 
     for (const tr of trs) {
-      // Skip the detected headerRow if it's inside tbody
       if (headerRow && tr === headerRow) continue;
-
-      // Skip any explicit th-header rows
       if (tr.querySelector("th")) continue;
 
       const tds = Array.from(tr.querySelectorAll("td"));
@@ -1095,8 +1184,9 @@
 
   window.Common.loadAllEvents = async function loadAllEvents({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
+    const forcing = !!(FORCE_REFRESH || forceRefresh);
 
-    if (!FORCE_REFRESH && !forceRefresh) {
+    if (!forcing) {
       const cached = cacheOn ? cacheGet(CACHE.KEY_RESULTS, CACHE.TTL_RESULTS_MS) : null;
       if (cached && cached.rows && cached.columns) {
         onStatus && onStatus("Loaded results from cache.");
@@ -1106,7 +1196,7 @@
 
     onStatus && onStatus("Loading results from PDGA…");
 
-    const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: false });
+    const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: forcing });
     const events = (ctx && ctx.events) ? ctx.events : [];
 
     const completedEvents = events.filter(e => !!e.isCompleted);
@@ -1120,11 +1210,18 @@
 
     const allRows = [];
     for (const ev of completedEvents) {
-      try {
-        const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: !!forceRefresh });
+      if (forcing) {
+        // FORCE: if anything fails, abort and surface the error (no silent partial/stale refresh).
+        const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
         for (const r of rows) allRows.push(r);
-      } catch (e) {
-        console.warn("Failed to load event results:", ev, e);
+      } else {
+        // Normal browsing: best-effort per event.
+        try {
+          const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: false });
+          for (const r of rows) allRows.push(r);
+        } catch (e) {
+          console.warn("Failed to load event results:", ev, e);
+        }
       }
     }
 

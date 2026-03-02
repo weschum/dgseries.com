@@ -1,9 +1,18 @@
 <?php
 // /dgst/pdga-proxy.php
-// PDGA HTML proxy w/ disk cache + serve-stale-on-429.
-// Adds ?force=1 to bypass + delete disk cache for the requested URL.
-// ALSO: when force=1, adds a cache-buster query param to the upstream PDGA URL
-// to avoid receiving stale HTML from PDGA/CDN edge caches.
+// PDGA HTML proxy w/ disk cache.
+// Normal browsing:
+//   - serves fresh cache within TTL
+//   - may serve stale cache on upstream 429/5xx within stale window
+// Manual force refresh (?force=1):
+//   - deletes disk cache for the requested URL
+//   - ALWAYS fetches upstream with a unique cache-buster param (dgst_bust=...)
+//   - NEVER serves stale cached data
+//   - surfaces upstream errors clearly (returns upstream status, including 429)
+// Adds headers:
+//   X-DGST-Cache: HIT | MISS | FORCE MISS | STALE (...)
+//   X-DGST-Fetch-Time: unix epoch seconds of when the body was fetched (cache meta time for HIT/STALE; now for MISS)
+//   X-DGST-Upstream-Code: upstream HTTP status (when known)
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   header('Access-Control-Allow-Origin: *');
@@ -61,13 +70,10 @@ if (!in_array($host, $ALLOWED_HOSTS, true)) {
   exit;
 }
 
-// We now allow any path on the allowed PDGA hosts.
-// (Host + scheme restrictions remain the main security boundary.)
-
 // ---- caching policy ----
 $isSearch = (strpos($path, '/tour/search') === 0);
 $ttlFreshSeconds = $isSearch ? 300 : 3600;     // 5 min for search, 1 hr for event
-$ttlStaleSeconds = $isSearch ? 3600 : 86400;   // stale window (serve if rate-limited)
+$ttlStaleSeconds = $isSearch ? 3600 : 86400;   // stale window (serve if rate-limited) -- ONLY for non-force
 
 $cacheKey  = sha1($url);
 $cacheFile = $CACHE_DIR . '/' . $cacheKey . '.html';
@@ -84,15 +90,19 @@ function read_cache($cacheFile, $metaFile) {
   return array('time' => (int)$meta['time'], 'body' => $body);
 }
 
-function write_cache($cacheFile, $metaFile, $body) {
+function write_cache($cacheFile, $metaFile, $body, $t) {
   @file_put_contents($cacheFile, $body, LOCK_EX);
-  @file_put_contents($metaFile, json_encode(array('time' => time())), LOCK_EX);
+  @file_put_contents($metaFile, json_encode(array('time' => (int)$t)), LOCK_EX);
 }
 
-function send_html($body, $cacheHeader, $forceNoStore) {
+function common_headers() {
   header('Access-Control-Allow-Origin: *');
   header('Access-Control-Allow-Methods: GET, OPTIONS');
   header('Access-Control-Allow-Headers: Content-Type');
+}
+
+function send_html($body, $cacheHeader, $forceNoStore, $fetchTime, $upstreamCode) {
+  common_headers();
   if ($forceNoStore) {
     header('Cache-Control: no-store, max-age=0');
   } else {
@@ -100,7 +110,19 @@ function send_html($body, $cacheHeader, $forceNoStore) {
   }
   header('Content-Type: text/html; charset=utf-8');
   header('X-DGST-Cache: ' . $cacheHeader);
+  header('X-DGST-Fetch-Time: ' . (int)$fetchTime);
+  if ($upstreamCode !== null) header('X-DGST-Upstream-Code: ' . (int)$upstreamCode);
   echo $body;
+  exit;
+}
+
+function send_error($status, $message, $forceNoStore, $upstreamCode) {
+  common_headers();
+  if ($forceNoStore) header('Cache-Control: no-store, max-age=0');
+  header('Content-Type: text/plain; charset=utf-8');
+  if ($upstreamCode !== null) header('X-DGST-Upstream-Code: ' . (int)$upstreamCode);
+  http_response_code((int)$status);
+  echo $message;
   exit;
 }
 
@@ -116,7 +138,7 @@ $now = time();
 
 // Serve fresh cache immediately if within TTL
 if ($cached && ($now - $cached['time'] <= $ttlFreshSeconds)) {
-  send_html($cached['body'], 'HIT', false);
+  send_html($cached['body'], 'HIT', false, $cached['time'], 200);
 }
 
 // When forcing refresh, also bypass PDGA/CDN edge caches by adding a unique query param.
@@ -127,13 +149,15 @@ if ($FORCE) {
 }
 
 // ---- fetch upstream ----
+$upstreamCode = null;
+
 if (!function_exists('curl_init')) {
   $ctx = stream_context_create(array(
     'http' => array(
       'method' => 'GET',
       'timeout' => $TIMEOUT,
       'header' =>
-        "User-Agent: dgst-proxy/1.1 (+https://chumworx.com/dgst)\r\n" .
+        "User-Agent: dgst-proxy/1.2 (+https://chumworx.com/dgst)\r\n" .
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" .
         "Accept-Language: en-US,en;q=0.8\r\n" .
         "Cache-Control: no-cache\r\n" .
@@ -142,25 +166,31 @@ if (!function_exists('curl_init')) {
   ));
 
   $data = @file_get_contents($fetchUrl, false, $ctx);
+
   if ($data === false) {
-    if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-      send_html($cached['body'], 'STALE (no curl)', false);
+    // FORCE must never serve stale.
+    if ($FORCE) {
+      send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", true, null);
     }
-    http_response_code(502);
-    header('Content-Type: text/plain; charset=utf-8');
-    echo "Upstream fetch failed (no curl and file_get_contents failed)";
-    exit;
+
+    // Non-force: may serve stale cache if allowed
+    if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
+      send_html($cached['body'], 'STALE (no curl)', false, $cached['time'], 200);
+    }
+
+    send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", false, null);
   }
 
   if (strlen($data) > $MAX_BYTES) {
-    http_response_code(413);
-    header('Content-Type: text/plain; charset=utf-8');
-    echo "Upstream response too large";
-    exit;
+    send_error(413, "Upstream response too large", $FORCE, null);
   }
 
-  write_cache($cacheFile, $metaFile, $data);
-  send_html($data, $FORCE ? 'FORCE MISS (no curl)' : 'MISS (no curl)', $FORCE);
+  // Treat stream fetch as 200 if we got bytes.
+  $upstreamCode = 200;
+
+  // Cache successful response and return it
+  write_cache($cacheFile, $metaFile, $data, $now);
+  send_html($data, $FORCE ? 'FORCE MISS (no curl)' : 'MISS (no curl)', $FORCE, $now, $upstreamCode);
 }
 
 // cURL path
@@ -171,7 +201,7 @@ curl_setopt_array($ch, array(
   CURLOPT_MAXREDIRS      => 3,
   CURLOPT_TIMEOUT        => $TIMEOUT,
   CURLOPT_CONNECTTIMEOUT => 8,
-  CURLOPT_USERAGENT      => 'dgst-proxy/1.1 (+https://chumworx.com/dgst)',
+  CURLOPT_USERAGENT      => 'dgst-proxy/1.2 (+https://chumworx.com/dgst)',
   CURLOPT_HTTPHEADER     => array(
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language: en-US,en;q=0.8',
@@ -188,45 +218,55 @@ $err  = curl_error($ch);
 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
+$upstreamCode = (int)$code;
+
 if ($data === false) {
-  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (curl error)', false);
+  // FORCE must never serve stale.
+  if ($FORCE) {
+    send_error(502, "Upstream fetch failed: " . $err, true, $upstreamCode);
   }
-  http_response_code(502);
-  header('Content-Type: text/plain; charset=utf-8');
-  echo "Upstream fetch failed: " . $err;
-  exit;
+
+  // Non-force: may serve stale cache
+  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
+    send_html($cached['body'], 'STALE (curl error)', false, $cached['time'], 200);
+  }
+
+  send_error(502, "Upstream fetch failed: " . $err, false, $upstreamCode);
 }
 
 if (strlen($data) > $MAX_BYTES) {
-  http_response_code(413);
-  header('Content-Type: text/plain; charset=utf-8');
-  echo "Upstream response too large";
-  exit;
+  send_error(413, "Upstream response too large", $FORCE, $upstreamCode);
 }
 
-// If rate limited, serve cached if available
-if ((int)$code === 429) {
-  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (429)', false);
+// If upstream 429 or non-2xx:
+if ($upstreamCode === 429) {
+  // FORCE must never serve stale; return 429.
+  if ($FORCE) {
+    send_error(429, "Upstream returned HTTP 429 (rate limited). Please wait and try again.", true, $upstreamCode);
   }
-  http_response_code(502);
-  header('Content-Type: text/plain; charset=utf-8');
-  echo "Upstream returned HTTP 429";
-  exit;
+
+  // Non-force: may serve stale
+  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
+    send_html($cached['body'], 'STALE (429)', false, $cached['time'], 200);
+  }
+
+  send_error(429, "Upstream returned HTTP 429 (rate limited).", false, $upstreamCode);
 }
 
-// Other non-2xx => serve cache if possible
-if ((int)$code < 200 || (int)$code >= 300) {
-  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (http error)', false);
+if ($upstreamCode < 200 || $upstreamCode >= 300) {
+  // FORCE must never serve stale; return upstream status.
+  if ($FORCE) {
+    send_error($upstreamCode, "Upstream returned HTTP " . $upstreamCode, true, $upstreamCode);
   }
-  http_response_code(502);
-  header('Content-Type: text/plain; charset=utf-8');
-  echo "Upstream returned HTTP " . (int)$code;
-  exit;
+
+  // Non-force: may serve stale
+  if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
+    send_html($cached['body'], 'STALE (http error)', false, $cached['time'], 200);
+  }
+
+  send_error(502, "Upstream returned HTTP " . $upstreamCode, false, $upstreamCode);
 }
 
 // Cache successful response and return it
-write_cache($cacheFile, $metaFile, $data);
-send_html($data, $FORCE ? 'FORCE MISS' : 'MISS', $FORCE);
+write_cache($cacheFile, $metaFile, $data, $now);
+send_html($data, $FORCE ? 'FORCE MISS' : 'MISS', $FORCE, $now, $upstreamCode);

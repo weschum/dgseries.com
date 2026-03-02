@@ -54,6 +54,18 @@
     `;
   }
 
+  function updateRefreshStampUI() {
+    try {
+      const stamp = document.getElementById("pdgaRefreshStamp");
+      if (!stamp) return;
+      if (window.Common && typeof window.Common.getLastRefreshText === "function") {
+        stamp.textContent = window.Common.getLastRefreshText();
+      } else {
+        stamp.textContent = "Last refresh: —";
+      }
+    } catch {}
+  }
+
   async function init() {
     const statusEl = document.getElementById("eventsStatus");
     const completedWrap = document.getElementById("eventsCompletedWrap");
@@ -87,7 +99,7 @@
       return;
     }
 
-    // Inject Refresh button on Home view (above the status line)
+    // Inject Refresh button + stamp on Home view (above the status line)
     (() => {
       try {
         if (document.getElementById("pdgaRefreshBtn")) return;
@@ -98,9 +110,9 @@
           <button id="pdgaRefreshBtn" class="btn-refresh" type="button" title="Refresh PDGA data">
             Refresh PDGA Data
           </button>
+          <div id="pdgaRefreshStamp" class="refresh-stamp" style="margin-top:6px; font-size: 0.95em; opacity: 0.85;"></div>
         `;
 
-        // Place it right above the status line
         statusEl.parentElement.insertBefore(wrap, statusEl);
 
         const btn = document.getElementById("pdgaRefreshBtn");
@@ -110,13 +122,17 @@
             if (window.Common && typeof window.Common.triggerPdgaRefresh === "function") {
               window.Common.triggerPdgaRefresh();
             } else {
-              // fallback: reload with force=1
               const u = new URL(location.href);
               u.searchParams.set("force", "1");
               location.href = u.toString();
             }
           });
         }
+
+        updateRefreshStampUI();
+
+        // Live update if a refresh finalizes while this view is open.
+        window.addEventListener("dgst:refresh-updated", () => updateRefreshStampUI());
       } catch (err) {
         console.warn("Unable to inject PDGA refresh button:", err);
       }
@@ -132,9 +148,25 @@
         onStatus: setStatus,
         forceRefresh: false
       });
+
+      // Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
+      // For Home view, the "cycle" is successful seed discovery.
+      if (window.Common && typeof window.Common.finalizePdgaRefreshIfPending === "function") {
+        window.Common.finalizePdgaRefreshIfPending();
+        updateRefreshStampUI();
+      }
     } catch (e) {
       console.error("getSeriesContext failed:", e);
-      setStatus("Unable to discover events (error during fetch/parsing).");
+
+      // If this page load was a forced refresh, the proxy will return real errors (incl 429).
+      // We surface that clearly here; we DO NOT finalize a refresh timestamp.
+      const msg = String(e && e.message ? e.message : e);
+      if (msg.includes("(429)") || msg.toLowerCase().includes("429")) {
+        setStatus("Refresh failed: PDGA rate-limited (429). Wait a bit and try again.");
+      } else {
+        setStatus("Refresh failed: unable to fetch PDGA data. See Console for details.");
+      }
+
       completedWrap.innerHTML = `<div class="empty">Discovery failed. Check Console for details.</div>`;
       upcomingWrap.innerHTML = "";
       return;
