@@ -2,6 +2,8 @@
 // /dgst/pdga-proxy.php
 // PDGA HTML proxy w/ disk cache + serve-stale-on-429.
 // Adds ?force=1 to bypass + delete disk cache for the requested URL.
+// ALSO: when force=1, adds a cache-buster query param to the upstream PDGA URL
+// to avoid receiving stale HTML from PDGA/CDN edge caches.
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   header('Access-Control-Allow-Origin: *');
@@ -117,6 +119,13 @@ if ($cached && ($now - $cached['time'] <= $ttlFreshSeconds)) {
   send_html($cached['body'], 'HIT', false);
 }
 
+// When forcing refresh, also bypass PDGA/CDN edge caches by adding a unique query param.
+$fetchUrl = $url;
+if ($FORCE) {
+  $sep = (strpos($fetchUrl, '?') !== false) ? '&' : '?';
+  $fetchUrl .= $sep . 'dgst_bust=' . $now . '_' . mt_rand(1000, 9999);
+}
+
 // ---- fetch upstream ----
 if (!function_exists('curl_init')) {
   $ctx = stream_context_create(array(
@@ -126,11 +135,13 @@ if (!function_exists('curl_init')) {
       'header' =>
         "User-Agent: dgst-proxy/1.1 (+https://chumworx.com/dgst)\r\n" .
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" .
-        "Accept-Language: en-US,en;q=0.8\r\n"
+        "Accept-Language: en-US,en;q=0.8\r\n" .
+        "Cache-Control: no-cache\r\n" .
+        "Pragma: no-cache\r\n"
     )
   ));
 
-  $data = @file_get_contents($url, false, $ctx);
+  $data = @file_get_contents($fetchUrl, false, $ctx);
   if ($data === false) {
     if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
       send_html($cached['body'], 'STALE (no curl)', false);
@@ -153,7 +164,7 @@ if (!function_exists('curl_init')) {
 }
 
 // cURL path
-$ch = curl_init($url);
+$ch = curl_init($fetchUrl);
 curl_setopt_array($ch, array(
   CURLOPT_RETURNTRANSFER => true,
   CURLOPT_FOLLOWLOCATION => true,
@@ -163,8 +174,13 @@ curl_setopt_array($ch, array(
   CURLOPT_USERAGENT      => 'dgst-proxy/1.1 (+https://chumworx.com/dgst)',
   CURLOPT_HTTPHEADER     => array(
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language: en-US,en;q=0.8'
-  )
+    'Accept-Language: en-US,en;q=0.8',
+    'Cache-Control: no-cache',
+    'Pragma: no-cache'
+  ),
+  // Help avoid connection reuse weirdness when forcing refresh
+  CURLOPT_FRESH_CONNECT  => $FORCE ? true : false,
+  CURLOPT_FORBID_REUSE   => $FORCE ? true : false
 ));
 
 $data = curl_exec($ch);
