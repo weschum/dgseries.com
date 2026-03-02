@@ -203,7 +203,11 @@
   }
 
   function fetchViaProxy(targetUrl) {
-    const url = DATA.PDGA.PROXY_PREFIX + encodeURIComponent(String(targetUrl || ""));
+    const force = FORCE_REFRESH ? "&force=1" : "";
+    const url =
+      DATA.PDGA.PROXY_PREFIX +
+      encodeURIComponent(String(targetUrl || "")) +
+      force;
     return fetchText(url);
   }
 
