@@ -1,9 +1,8 @@
 <?php
 // /dgst/pdga-proxy.php
 // PDGA HTML proxy w/ disk cache + serve-stale-on-429.
-// Compatible with older PHP/cURL (uses CURLINFO_HTTP_CODE).
+// Adds ?force=1 to bypass + delete disk cache for the requested URL.
 
-// Handle CORS preflight quickly
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   header('Access-Control-Allow-Origin: *');
   header('Access-Control-Allow-Methods: GET, OPTIONS');
@@ -27,26 +26,29 @@ $url = isset($_GET['url']) ? $_GET['url'] : '';
 if (!$url) {
   http_response_code(400);
   header('Content-Type: text/plain; charset=utf-8');
-  echo "Missing required query param: url";
+  echo "Missing ?url=";
   exit;
 }
 
+$FORCE = (isset($_GET['force']) && (string)$_GET['force'] === '1');
+
+// Basic URL validation + allow-list hosts
 $parts = parse_url($url);
-if (!$parts || !isset($parts['scheme']) || !isset($parts['host']) || !isset($parts['path'])) {
+if (!$parts || !isset($parts['scheme']) || !isset($parts['host'])) {
   http_response_code(400);
   header('Content-Type: text/plain; charset=utf-8');
-  echo "Invalid url";
+  echo "Invalid URL";
   exit;
 }
 
 $scheme = strtolower($parts['scheme']);
 $host   = strtolower($parts['host']);
-$path   = $parts['path'];
+$path   = isset($parts['path']) ? $parts['path'] : '/';
 
-if ($scheme !== 'https') {
+if ($scheme !== 'https' && $scheme !== 'http') {
   http_response_code(400);
   header('Content-Type: text/plain; charset=utf-8');
-  echo "Only https URLs are allowed";
+  echo "Invalid scheme";
   exit;
 }
 
@@ -57,8 +59,6 @@ if (!in_array($host, $ALLOWED_HOSTS, true)) {
   exit;
 }
 
-// NOTE: Previously we restricted to only specific PDGA paths.
-// That broke discovery/results when PDGA uses additional valid endpoints.
 // We now allow any path on the allowed PDGA hosts.
 // (Host + scheme restrictions remain the main security boundary.)
 
@@ -83,56 +83,57 @@ function read_cache($cacheFile, $metaFile) {
 }
 
 function write_cache($cacheFile, $metaFile, $body) {
-  // If disk is read-only or permissions fail, we simply won't cache (no fatal)
   @file_put_contents($cacheFile, $body, LOCK_EX);
   @file_put_contents($metaFile, json_encode(array('time' => time())), LOCK_EX);
 }
 
-$cached = read_cache($cacheFile, $metaFile);
-$now = time();
-
-$cacheAgeSeconds = ($cached) ? ($now - $cached['time']) : -1;
-
-function send_html($body, $cacheHeader, $cacheAgeSeconds = -1) {
+function send_html($body, $cacheHeader, $forceNoStore) {
   header('Access-Control-Allow-Origin: *');
   header('Access-Control-Allow-Methods: GET, OPTIONS');
   header('Access-Control-Allow-Headers: Content-Type');
-
-  // Never let the browser cache proxy responses.
-  header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-  header('Pragma: no-cache');
-  header('Expires: 0');
-
+  if ($forceNoStore) {
+    header('Cache-Control: no-store, max-age=0');
+  } else {
+    header('Cache-Control: public, max-age=60');
+  }
   header('Content-Type: text/html; charset=utf-8');
   header('X-DGST-Cache: ' . $cacheHeader);
-  header('X-DGST-Cache-Age: ' . $cacheAgeSeconds);
-
   echo $body;
   exit;
 }
 
+// Force: delete disk cache for this URL and bypass reads
+if ($FORCE) {
+  if (is_file($cacheFile)) @unlink($cacheFile);
+  if (is_file($metaFile))  @unlink($metaFile);
+}
+
+// Read cache (unless force)
+$cached = $FORCE ? null : read_cache($cacheFile, $metaFile);
+$now = time();
+
 // Serve fresh cache immediately if within TTL
 if ($cached && ($now - $cached['time'] <= $ttlFreshSeconds)) {
-  send_html($cached['body'], 'HIT', $cacheAgeSeconds);
+  send_html($cached['body'], 'HIT', false);
 }
 
 // ---- fetch upstream ----
 if (!function_exists('curl_init')) {
-  // cURL not available; fall back to file_get_contents
   $ctx = stream_context_create(array(
     'http' => array(
       'method' => 'GET',
       'timeout' => $TIMEOUT,
       'header' =>
-        "User-Agent: dgst-proxy/1.0 (Disc Golf Series Tracker; https://dgseries.com)\r\n" .
+        "User-Agent: dgst-proxy/1.1 (+https://chumworx.com/dgst)\r\n" .
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" .
         "Accept-Language: en-US,en;q=0.8\r\n"
     )
   ));
+
   $data = @file_get_contents($url, false, $ctx);
   if ($data === false) {
     if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-      send_html($cached['body'], 'STALE (no curl)', $cacheAgeSeconds);
+      send_html($cached['body'], 'STALE (no curl)', false);
     }
     http_response_code(502);
     header('Content-Type: text/plain; charset=utf-8');
@@ -148,7 +149,7 @@ if (!function_exists('curl_init')) {
   }
 
   write_cache($cacheFile, $metaFile, $data);
-  send_html($data, 'MISS (no curl)', $cacheAgeSeconds);
+  send_html($data, $FORCE ? 'FORCE MISS (no curl)' : 'MISS (no curl)', $FORCE);
 }
 
 // cURL path
@@ -159,7 +160,7 @@ curl_setopt_array($ch, array(
   CURLOPT_MAXREDIRS      => 3,
   CURLOPT_TIMEOUT        => $TIMEOUT,
   CURLOPT_CONNECTTIMEOUT => 8,
-  CURLOPT_USERAGENT      => 'dgst-proxy/1.0 (Disc Golf Series Tracker; https://dgseries.com)',
+  CURLOPT_USERAGENT      => 'dgst-proxy/1.1 (+https://chumworx.com/dgst)',
   CURLOPT_HTTPHEADER     => array(
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language: en-US,en;q=0.8'
@@ -168,13 +169,12 @@ curl_setopt_array($ch, array(
 
 $data = curl_exec($ch);
 $err  = curl_error($ch);
-// IMPORTANT: older builds use CURLINFO_HTTP_CODE
 $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
 if ($data === false) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (curl error)', $cacheAgeSeconds);
+    send_html($cached['body'], 'STALE (curl error)', false);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -192,7 +192,7 @@ if (strlen($data) > $MAX_BYTES) {
 // If rate limited, serve cached if available
 if ((int)$code === 429) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (429)', $cacheAgeSeconds);
+    send_html($cached['body'], 'STALE (429)', false);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -203,7 +203,7 @@ if ((int)$code === 429) {
 // Other non-2xx => serve cache if possible
 if ((int)$code < 200 || (int)$code >= 300) {
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
-    send_html($cached['body'], 'STALE (http error)', $cacheAgeSeconds);
+    send_html($cached['body'], 'STALE (http error)', false);
   }
   http_response_code(502);
   header('Content-Type: text/plain; charset=utf-8');
@@ -213,4 +213,4 @@ if ((int)$code < 200 || (int)$code >= 300) {
 
 // Cache successful response and return it
 write_cache($cacheFile, $metaFile, $data);
-send_html($data, 'MISS', 0);
+send_html($data, $FORCE ? 'FORCE MISS' : 'MISS', $FORCE);
