@@ -50,30 +50,34 @@
         return src + (src.indexOf("?") >= 0 ? "&" : "?") + "v=" + encodeURIComponent(v);
       }
 
-      function loadScript(src, cb) {
-        var s = document.createElement("script");
-        s.src = withV(src);
-        s.onload = function () { cb && cb(); };
-        s.onerror = function () { console.error("Failed to load script:", src); };
-        document.body.appendChild(s);
+      function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement("script");
+          s.src = withV(src);
+          s.onload = function () { resolve(); };
+          s.onerror = function () {
+            console.error("Failed to load script:", src);
+            reject(new Error("Failed to load script: " + src));
+          };
+          document.body.appendChild(s);
+        });
       }
 
       // Load series config first (local), then shared runtime.
-      loadScript("./series.config.js", function () {
-        loadScript("../_shared/common.js", function () {
-          // View modules
-          loadScript("../_shared/index.js", function () {
-            loadScript("../_shared/standings.js", function () {
-              loadScript("../_shared/all-events.js", function () {
-                loadScript("../_shared/player.js", function () {
-                  // Router last
-                  loadScript("../_shared/router.js");
-                });
-              });
-            });
-          });
-        });
-      });
+      var scripts = [
+        "./series.config.js",
+        "../_shared/common.js",
+        "../_shared/index.js",
+        "../_shared/standings.js",
+        "../_shared/all-events.js",
+        "../_shared/player.js",
+        "../_shared/router.js",
+      ];
+
+      // Sequential load (order matters).
+      scripts.reduce(function (p, src) {
+        return p.then(function () { return loadScript(src); });
+      }, Promise.resolve());
     })();
   </script>
 </body>

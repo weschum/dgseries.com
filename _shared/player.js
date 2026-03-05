@@ -287,10 +287,8 @@
 
     setStatus("Loading…");
 
-    const [payload, ctx] = await Promise.all([
-      window.Common.loadAllEvents({ onStatus: setStatus }),
-      window.Common.getSeriesContext({ onStatus: () => {}, forceRefresh: false }),
-    ]);
+    const payload = await window.Common.loadAllEvents({ onStatus: setStatus });
+    const ctx = await window.Common.getSeriesContext({ onStatus: () => {}, forceRefresh: false });
 
     const rows = payload.rows || [];
     const columns = payload.columns || [];

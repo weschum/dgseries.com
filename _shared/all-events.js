@@ -134,7 +134,7 @@
     setStatus("Loading…");
 
     const payload = await window.Common.loadAllEvents({ onStatus: setStatus });
-    const ctx = await window.Common.getSeriesContext({ onStatus: () => {}, forceRefresh: false });
+    const ctx = await window.Common.getSeriesContext({ onStatus: () => {} });
 
     const allRows = payload.rows || [];
     const allColumns = payload.columns || [];

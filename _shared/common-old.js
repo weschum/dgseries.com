@@ -349,10 +349,9 @@
     return await res.text();
   }
 
-  function fetchViaProxy(targetUrl, { forceRefresh, useGlobalForce = true } = {}) {
+  function fetchViaProxy(targetUrl, { forceRefresh } = {}) {
     // When forcing refresh, also bust the server-side proxy disk cache.
-    // NOTE: Discovery fetches should usually NOT honor global force (to reduce request volume).
-    const force = ((useGlobalForce && FORCE_REFRESH_ACTIVE) || !!forceRefresh) ? "&force=1" : "";
+    const force = (FORCE_REFRESH_ACTIVE || !!forceRefresh) ? "&force=1" : "";
     const url = DATA.PDGA.PROXY_PREFIX + encodeURIComponent(String(targetUrl || "")) + force;
     return fetchText(url);
   }
@@ -805,177 +804,121 @@
     return sortEventsSmart(events);
   }
 
-  
-
-  // =========================================================
-  // Single-flight memoization (per tab)
-  // =========================================================
-  let __dgstSeriesCtxPromise = null;
-  let __dgstSeriesCtxPromiseMode = "normal"; // "normal" | "force"
-  let __dgstSeriesCtxValue = null;
-  let __dgstSeriesCtxValueAt = 0;
-
-  let __dgstResultsPromise = null;
-  let __dgstResultsPromiseMode = "normal"; // "normal" | "force"
-  let __dgstResultsValue = null;
-  let __dgstResultsValueAt = 0;
-
   window.Common.getSeriesContext = async function getSeriesContext({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
+    const forcing = !!(FORCE_REFRESH_ACTIVE || forceRefresh);
 
-    // IMPORTANT: discovery should NOT automatically honor global ?force=1 unless explicitly requested.
-    // This reduces request volume and 429 risk.
-    const forcing = !!forceRefresh;
-    const mode = forcing ? "force" : "normal";
-
-    // Fast in-memory path (per tab)
-    if (!forcing && __dgstSeriesCtxValue) {
-      const fresh = (__dgstSeriesCtxValueAt > 0) && ((Date.now() - __dgstSeriesCtxValueAt) <= CACHE.TTL_SERIES_CTX_MS);
-      if (fresh) return __dgstSeriesCtxValue;
-    }
-
-    // Join in-flight discovery if mode matches
-    if (__dgstSeriesCtxPromise && __dgstSeriesCtxPromiseMode === mode) {
-      return __dgstSeriesCtxPromise;
-    }
-
-    // Skip reading session cache if explicitly forcing discovery.
+    // Skip reading cache if forcing.
     if (!forcing) {
       const cached = cacheOn ? cacheGet(CACHE.KEY_SERIES_CTX, CACHE.TTL_SERIES_CTX_MS) : null;
-      if (cached) {
-        __dgstSeriesCtxValue = cached;
-        __dgstSeriesCtxValueAt = Date.now();
-        return cached;
-      }
+      if (cached) return cached;
     }
 
-    __dgstSeriesCtxPromiseMode = mode;
-    __dgstSeriesCtxPromise = (async () => {
-      onStatus && onStatus("Fetching PDGA series listing…");
+    onStatus && onStatus("Fetching PDGA series listing…");
 
-      try {
-        const byId = new Map();
+    try {
+      const byId = new Map();
 
-        const seeds = Array.isArray(DATA.PDGA.SEED_URLS) ? DATA.PDGA.SEED_URLS : [DATA.PDGA.SEED_URL];
+      const seeds = Array.isArray(DATA.PDGA.SEED_URLS) ? DATA.PDGA.SEED_URLS : [DATA.PDGA.SEED_URL];
 
-        for (let i = 0; i < seeds.length; i++) {
-          const seed = seeds[i];
-          onStatus && onStatus(`Fetching PDGA series listing… (${i + 1}/${seeds.length})`);
+      for (let i = 0; i < seeds.length; i++) {
+        const seed = seeds[i];
+        onStatus && onStatus(`Fetching PDGA series listing… (${i + 1}/${seeds.length})`);
 
-          // Discovery should typically NOT honor global force.
-          const html = await fetchViaProxy(seed, { forceRefresh: forcing, useGlobalForce: false });
-          const parsed = parseEventsFromSeedHtml(html);
+        const html = await fetchViaProxy(seed, { forceRefresh: forcing });
+        const parsed = parseEventsFromSeedHtml(html);
 
-          for (const ev of parsed) {
-            const id = String(ev.pdgaEventId || "").trim();
-            if (!id) continue;
+        for (const ev of parsed) {
+          const id = String(ev.pdgaEventId || "").trim();
+          if (!id) continue;
 
-            if (!byId.has(id)) {
-              byId.set(id, ev);
-              continue;
-            }
-
-            const existing = byId.get(id);
-            existing.isCompleted = !!(existing.isCompleted || ev.isCompleted);
-
-            if (!existing.dateText && ev.dateText) existing.dateText = ev.dateText;
-            if (!Number.isFinite(existing.startMs) && Number.isFinite(ev.startMs)) existing.startMs = ev.startMs;
-            if (!Number.isFinite(existing.endMs) && Number.isFinite(ev.endMs)) existing.endMs = ev.endMs;
-
-            if (!existing.pdgaUrl && ev.pdgaUrl) existing.pdgaUrl = ev.pdgaUrl;
-            if (!existing.pdgaName && ev.pdgaName) existing.pdgaName = ev.pdgaName;
-            if (!existing.shortLabel && ev.shortLabel) existing.shortLabel = ev.shortLabel;
-          }
-        }
-
-        const events = sortEventsSmart(Array.from(byId.values()));
-        ensureUniqueShortLabels(events);
-
-        const byLabel = new Map();
-        for (const ev of events) {
-          const k = String(ev.shortLabel || "").trim();
-          if (!k) continue;
-          if (!byLabel.has(k)) byLabel.set(k, []);
-          byLabel.get(k).push(ev);
-        }
-
-        for (const [label, list] of byLabel.entries()) {
-          if (list.length <= 1) continue;
-          const ids = list.map(e => String(e.pdgaEventId || "")).filter(Boolean).join(", ");
-          console.warn(`[DGST] Duplicate event shortLabel "${label}" for eventId(s): ${ids}.`);
-
-          if (DEBUG) {
-            for (const ev of list) {
-              const id = String(ev.pdgaEventId || "").trim();
-              if (id) ev.shortLabel = `${label}-${id}`;
-            }
-          }
-        }
-
-        const eventUrlByShort = {};
-        const eventNameByShort = {};
-        for (const ev of events) {
-          const k = String(ev.shortLabel || "").trim();
-          if (!k) continue;
-
-          if (ev.pdgaUrl) {
-            if (!eventUrlByShort[k]) {
-              eventUrlByShort[k] = ev.pdgaUrl;
-            } else {
-              const existing = events.find(x => String(x.shortLabel || "").trim() === k && x.pdgaUrl === eventUrlByShort[k]);
-              const existingCompleted = existing ? !!existing.isCompleted : false;
-              if (!existingCompleted && ev.isCompleted) eventUrlByShort[k] = ev.pdgaUrl;
-            }
+          if (!byId.has(id)) {
+            byId.set(id, ev);
+            continue;
           }
 
-          if (ev.pdgaName && !eventNameByShort[k]) eventNameByShort[k] = ev.pdgaName;
+          const existing = byId.get(id);
+          existing.isCompleted = !!(existing.isCompleted || ev.isCompleted);
+
+          if (!existing.dateText && ev.dateText) existing.dateText = ev.dateText;
+          if (!Number.isFinite(existing.startMs) && Number.isFinite(ev.startMs)) existing.startMs = ev.startMs;
+          if (!Number.isFinite(existing.endMs) && Number.isFinite(ev.endMs)) existing.endMs = ev.endMs;
+
+          if (!existing.pdgaUrl && ev.pdgaUrl) existing.pdgaUrl = ev.pdgaUrl;
+          if (!existing.pdgaName && ev.pdgaName) existing.pdgaName = ev.pdgaName;
+          if (!existing.shortLabel && ev.shortLabel) existing.shortLabel = ev.shortLabel;
         }
-
-        const ctx = {
-          seedUrl: DATA.PDGA.SEED_URL,
-          seedUrls: DATA.PDGA.SEED_URLS || [DATA.PDGA.SEED_URL],
-          builtAt: Date.now(),
-          events,
-          eventUrlByShort,
-          eventNameByShort,
-        };
-
-        if (cacheOn) cacheSet(CACHE.KEY_SERIES_CTX, ctx);
-
-        __dgstSeriesCtxValue = ctx;
-        __dgstSeriesCtxValueAt = Date.now();
-
-        onStatus && onStatus(`Found ${events.length} event(s) from PDGA.`);
-        return ctx;
-      } catch (e) {
-        // IMPORTANT: explicit forced discovery must never silently fall back to stale.
-        if (forcing) {
-          onStatus && onStatus("PDGA discovery failed (refresh aborted).");
-          throw e;
-        }
-
-        console.warn("Series context discovery failed:", e);
-        onStatus && onStatus("PDGA discovery failed (using cached data if available).");
-
-        const cached = cacheOn ? cacheGet(CACHE.KEY_SERIES_CTX, CACHE.TTL_SERIES_CTX_MS) : null;
-        if (cached) {
-          __dgstSeriesCtxValue = cached;
-          __dgstSeriesCtxValueAt = Date.now();
-          return cached;
-        }
-
-        const empty = { seedUrl: DATA.PDGA.SEED_URL, builtAt: Date.now(), events: [], eventUrlByShort: {}, eventNameByShort: {} };
-        __dgstSeriesCtxValue = empty;
-        __dgstSeriesCtxValueAt = Date.now();
-        return empty;
       }
-    })().finally(() => {
-      __dgstSeriesCtxPromise = null;
-    });
 
-    return __dgstSeriesCtxPromise;
+      const events = sortEventsSmart(Array.from(byId.values()));
+      ensureUniqueShortLabels(events);
+
+      const byLabel = new Map();
+      for (const ev of events) {
+        const k = String(ev.shortLabel || "").trim();
+        if (!k) continue;
+        if (!byLabel.has(k)) byLabel.set(k, []);
+        byLabel.get(k).push(ev);
+      }
+
+      for (const [label, list] of byLabel.entries()) {
+        if (list.length <= 1) continue;
+        const ids = list.map(e => String(e.pdgaEventId || "")).filter(Boolean).join(", ");
+        console.warn(`[DGST] Duplicate event shortLabel "${label}" for eventId(s): ${ids}.`);
+
+        if (DEBUG) {
+          for (const ev of list) {
+            const id = String(ev.pdgaEventId || "").trim();
+            if (id) ev.shortLabel = `${label}-${id}`;
+          }
+        }
+      }
+
+      const eventUrlByShort = {};
+      const eventNameByShort = {};
+      for (const ev of events) {
+        const k = String(ev.shortLabel || "").trim();
+        if (!k) continue;
+
+        if (ev.pdgaUrl) {
+          if (!eventUrlByShort[k]) {
+            eventUrlByShort[k] = ev.pdgaUrl;
+          } else {
+            const existing = events.find(x => String(x.shortLabel || "").trim() === k && x.pdgaUrl === eventUrlByShort[k]);
+            const existingCompleted = existing ? !!existing.isCompleted : false;
+            if (!existingCompleted && ev.isCompleted) eventUrlByShort[k] = ev.pdgaUrl;
+          }
+        }
+
+        if (ev.pdgaName && !eventNameByShort[k]) eventNameByShort[k] = ev.pdgaName;
+      }
+
+      const ctx = {
+        seedUrl: DATA.PDGA.SEED_URL,
+        seedUrls: DATA.PDGA.SEED_URLS || [DATA.PDGA.SEED_URL],
+        builtAt: Date.now(),
+        events,
+        eventUrlByShort,
+        eventNameByShort,
+      };
+
+      if (cacheOn) cacheSet(CACHE.KEY_SERIES_CTX, ctx);
+
+      onStatus && onStatus(`Found ${events.length} event(s) from PDGA.`);
+      return ctx;
+    } catch (e) {
+      // IMPORTANT: forcing refresh must never silently fall back to stale.
+      if (forcing) {
+        onStatus && onStatus("PDGA discovery failed (refresh aborted).");
+        throw e;
+      }
+
+      console.warn("Series context discovery failed:", e);
+      onStatus && onStatus("PDGA discovery failed (using cached data if available).");
+      const cached = cacheOn ? cacheGet(CACHE.KEY_SERIES_CTX, CACHE.TTL_SERIES_CTX_MS) : null;
+      return cached || { seedUrl: DATA.PDGA.SEED_URL, builtAt: Date.now(), events: [], eventUrlByShort: {}, eventNameByShort: {} };
+    }
   };
-
 
   // =========================================================
   // PDGA Results Loader
@@ -1253,127 +1196,92 @@
     // One-shot force: FORCE_REFRESH_ACTIVE is set only when landing with ?force=1.
     // We keep it active through the first successful results fetch, then turn it off.
     const forcing = !!(FORCE_REFRESH_ACTIVE || forceRefresh);
-    const mode = forcing ? "force" : "normal";
-
-    // Fast in-memory path (per tab)
-    if (!forcing && __dgstResultsValue) {
-      const fresh = (__dgstResultsValueAt > 0) && ((Date.now() - __dgstResultsValueAt) <= CACHE.TTL_RESULTS_MS);
-      if (fresh && __dgstResultsValue.rows && __dgstResultsValue.columns) {
-        onStatus && onStatus("Loaded results from cache.");
-        return __dgstResultsValue;
-      }
-    }
-
-    // Join in-flight load if mode matches
-    if (__dgstResultsPromise && __dgstResultsPromiseMode === mode) {
-      return __dgstResultsPromise;
-    }
 
     if (!forcing) {
       const cached = cacheOn ? cacheGet(CACHE.KEY_RESULTS, CACHE.TTL_RESULTS_MS) : null;
       if (cached && cached.rows && cached.columns) {
-        __dgstResultsValue = cached;
-        __dgstResultsValueAt = Date.now();
         onStatus && onStatus("Loaded results from cache.");
         return cached;
       }
     }
 
-    __dgstResultsPromiseMode = mode;
-    __dgstResultsPromise = (async () => {
-      onStatus && onStatus("Loading results from PDGA…");
+    onStatus && onStatus("Loading results from PDGA…");
 
-      // Results loading depends on discovery context, but we do NOT need to force-refresh
-      // discovery here (it increases request volume). Force applies to event result pages.
-      const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: false });
-      const events = (ctx && ctx.events) ? ctx.events : [];
+    // Results loading depends on discovery context, but we do NOT need to force-refresh
+    // discovery here (it increases request volume). Force applies to event result pages.
+    const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: false });
+    const events = (ctx && ctx.events) ? ctx.events : [];
 
-      const completedEvents = events.filter(e => !!e.isCompleted);
+    const completedEvents = events.filter(e => !!e.isCompleted);
 
-      if (!completedEvents.length) {
-        const emptyPayload = { columns: FIXED_COLUMNS.slice(), rows: [], builtAt: Date.now(), seedUrl: DATA.PDGA.SEED_URL };
-        if (cacheOn) cacheSet(CACHE.KEY_RESULTS, emptyPayload);
+    if (!completedEvents.length) {
+      const emptyPayload = { columns: FIXED_COLUMNS.slice(), rows: [], builtAt: Date.now(), seedUrl: DATA.PDGA.SEED_URL };
+      if (cacheOn) cacheSet(CACHE.KEY_RESULTS, emptyPayload);
 
-        __dgstResultsValue = emptyPayload;
-        __dgstResultsValueAt = Date.now();
-
-        // If we were forcing and found no events, consume force so navigation won't keep forcing.
-        if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
-
-        onStatus && onStatus("No completed events found.");
-        return emptyPayload;
-      }
-
-      // Throttle between event fetches to reduce PDGA 429 risk.
-      // Defaults can be overridden per-series:
-      //   SERIES.pdga.throttleMs (normal loads) default 350
-      //   SERIES.pdga.forceThrottleMs (force refresh) default 650
-      const pdgaCfg = SERIES.pdga || {};
-      const throttleMs = Number.isFinite(Number(pdgaCfg.throttleMs)) ? Number(pdgaCfg.throttleMs) : 350;
-      const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
-
-      const delayMs = forcing ? forceThrottleMs : throttleMs;
-
-      const allRows = [];
-      for (let i = 0; i < completedEvents.length; i++) {
-        const ev = completedEvents[i];
-
-        if (forcing) {
-          // FORCE: if anything fails, abort and surface the error (no silent partial/stale refresh).
-          const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
-          for (const r of rows) allRows.push(r);
-        } else {
-          // Normal browsing: best-effort per event.
-          try {
-            const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: false });
-            for (const r of rows) allRows.push(r);
-          } catch (e) {
-            console.warn("Failed to load event results:", ev, e);
-          }
-        }
-
-        // Delay between requests (not after the last one)
-        if (delayMs > 0 && i < completedEvents.length - 1) {
-          await sleep(delayMs);
-        }
-      }
-
-      const payload = {
-        columns: FIXED_COLUMNS.slice(),
-        rows: allRows,
-        builtAt: Date.now(),
-        seedUrl: DATA.PDGA.SEED_URL,
-      };
-
-      if (cacheOn) cacheSet(CACHE.KEY_RESULTS, payload);
-
-      __dgstResultsValue = payload;
-      __dgstResultsValueAt = Date.now();
-
-      // ✅ Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
-      // We only finalize after results successfully loaded and were cached.
-      if (window.Common && typeof window.Common.finalizePdgaRefreshIfPending === "function") {
-        window.Common.finalizePdgaRefreshIfPending();
-      }
-
-      // One-shot force refresh: after a successful forced load, switch back to normal mode
-      // so navigating to Standings/Player doesn't keep forcing proxy refresh.
+      // If we were forcing and found no events, consume force so navigation won't keep forcing.
       if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
 
-      onStatus && onStatus(`Loaded ${allRows.length} result row(s) from PDGA.`);
-      return payload;
-    })().catch(err => {
-      __dgstResultsValue = null;
-      __dgstResultsValueAt = 0;
-      throw err;
-    }).finally(() => {
-      __dgstResultsPromise = null;
-    });
+      onStatus && onStatus("No completed events found.");
+      return emptyPayload;
+    }
 
-    return __dgstResultsPromise;
+    // Throttle between event fetches to reduce PDGA 429 risk.
+    // Defaults can be overridden per-series:
+    //   SERIES.pdga.throttleMs (normal loads) default 350
+    //   SERIES.pdga.forceThrottleMs (force refresh) default 650
+    const pdgaCfg = SERIES.pdga || {};
+    const throttleMs = Number.isFinite(Number(pdgaCfg.throttleMs)) ? Number(pdgaCfg.throttleMs) : 350;
+    const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
+
+    const delayMs = forcing ? forceThrottleMs : throttleMs;
+
+    const allRows = [];
+    for (let i = 0; i < completedEvents.length; i++) {
+      const ev = completedEvents[i];
+
+      if (forcing) {
+        // FORCE: if anything fails, abort and surface the error (no silent partial/stale refresh).
+        const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
+        for (const r of rows) allRows.push(r);
+      } else {
+        // Normal browsing: best-effort per event.
+        try {
+          const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: false });
+          for (const r of rows) allRows.push(r);
+        } catch (e) {
+          console.warn("Failed to load event results:", ev, e);
+        }
+      }
+
+      // Delay between requests (not after the last one)
+      if (delayMs > 0 && i < completedEvents.length - 1) {
+        await sleep(delayMs);
+      }
+    }
+
+    const payload = {
+      columns: FIXED_COLUMNS.slice(),
+      rows: allRows,
+      builtAt: Date.now(),
+      seedUrl: DATA.PDGA.SEED_URL,
+    };
+
+    if (cacheOn) cacheSet(CACHE.KEY_RESULTS, payload);
+    
+    // ✅ Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
+    // We only finalize after results successfully loaded and were cached.
+    if (window.Common && typeof window.Common.finalizePdgaRefreshIfPending === "function") {
+      window.Common.finalizePdgaRefreshIfPending();
+    }
+
+    // One-shot force refresh: after a successful forced load, switch back to normal mode
+    // so navigating to Standings/Player doesn't keep forcing proxy refresh.
+    if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
+
+    onStatus && onStatus(`Loaded ${allRows.length} result row(s) from PDGA.`);
+    return payload;
   };
-
-
+  
   // =========================================================
   // Optional: Preload results once per tab to warm session cache
   // =========================================================

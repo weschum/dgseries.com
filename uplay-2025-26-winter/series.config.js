@@ -1,6 +1,6 @@
-// /dgseries.com/<series-folder>/series.config.js
-// Optional per-deployment configuration.
-// Pages will work without this file, but if present it can override branding + theme.
+// /dgst/uplay-2025-26-winter/series.config.js
+// Optional per-series configuration.
+// Pages will work without this file, but if present it can override branding + theme + PDGA discovery + rules.
 (() => {
   "use strict";
 
@@ -18,18 +18,21 @@
 
     theme: {
       // Accent used for active nav + focus ring.
-      // Make this series-customizable for multi-series deployments.
       accent: "#7ed2c6",
       // Nav pill styling (optional)
       nav: {
         borderColor: "#2b5194",
         borderWidthPx: 1,
+        radiusPx: 8,
         fontWeight: 700,
       },
     },
 
     pdga: {
-      seedUrl: "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
+      // Prefer seedUrls for multi-seed discovery. common.js should treat seedUrl as a single-item seedUrls if seedUrls is not provided.
+      seedUrls: [
+        "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
+      ],
       throttleMs: 300,
       forceThrottleMs: 700,
     },
@@ -47,12 +50,11 @@
       // Default points rule: 101 - finishing position
       points: { type: "linear", base: 101 },
     },
-    
+
     standings: {
       topEvents: 4,
       maxTotal: 400,
-      description: "Points Total = Top Four Event Results"
+      description: "Points Total = Top Four Event Results",
     },
-
   };
 })();
