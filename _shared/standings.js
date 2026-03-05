@@ -159,7 +159,7 @@
     setStatus("Loading…");
 
     const payload = await window.Common.loadAllEvents({ onStatus: setStatus });
-    const rows = payload.rows || [];
+    let rows = payload.rows || [];
 
     const divisions = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
     divisions.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
@@ -181,6 +181,32 @@
     }
 
     els.divisionSelect.addEventListener("change", refresh);
+
+    // If a forced refresh finishes while this view is open, reload cached results and re-render.
+    window.addEventListener("dgst:refresh-updated", async () => {
+      try {
+        const p2 = await window.Common.loadAllEvents({ onStatus: () => {} });
+        rows = p2.rows || [];
+
+        const divisions2 = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
+        divisions2.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
+
+        const current = els.divisionSelect.value;
+
+        els.divisionSelect.innerHTML = divisions2
+          .map(d => `<option value="${escapeHtml(d)}">${escapeHtml(window.Common.shortDivisionName(d))}</option>`)
+          .join("");
+
+        if (divisions2.includes(current)) els.divisionSelect.value = current;
+        else if (divisions2.includes(DEFAULT_DIVISION)) els.divisionSelect.value = DEFAULT_DIVISION;
+        else if (divisions2.length) els.divisionSelect.value = divisions2[0];
+
+        refresh();
+      } catch (e) {
+        // ignore
+      }
+    });
+
     refresh();
   }
 

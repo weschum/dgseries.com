@@ -36,6 +36,8 @@
       ],
       // Back-compat note: common.js should treat seedUrl as a single-item seedUrls if seedUrls is not provided.
       // seedUrl: "...",
+      throttleMs: 300,
+      forceThrottleMs: 700,
     },
 
     // Naming rules (series-specific). common.js must not hard-code series names.

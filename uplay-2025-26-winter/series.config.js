@@ -29,7 +29,9 @@
     },
 
     pdga: {
-      seedUrl: "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31"
+      seedUrl: "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
+      throttleMs: 300,
+      forceThrottleMs: 700,
     },
 
     // Naming rules (series-specific). common.js must not hard-code series names.

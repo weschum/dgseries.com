@@ -151,10 +151,10 @@
 
       // Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
       // For Home view, the "cycle" is successful seed discovery.
-      if (window.Common && typeof window.Common.finalizePdgaRefreshIfPending === "function") {
-        window.Common.finalizePdgaRefreshIfPending();
-        updateRefreshStampUI();
-      }
+      // Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
+      // Do NOT finalize here — seed discovery alone is not a full refresh.
+      // Finalize happens after results successfully load (loadAllEvents).
+      updateRefreshStampUI();
     } catch (e) {
       console.error("getSeriesContext failed:", e);
 
@@ -188,6 +188,24 @@
 
     completedWrap.innerHTML = renderEventsTable("Completed", completed);
     upcomingWrap.innerHTML  = renderEventsTable("Upcoming", upcoming);
+    // Optional preload: warm results cache so other views don't refetch per-event.
+    // This reduces repeated pulls when navigating to Standings / All Results / Player
+    // in the same tab/session.
+    try {
+      if (window.Common && typeof window.Common.preloadAllEvents === "function") {
+        window.Common.preloadAllEvents({ onStatus: setStatus }).catch((e) => {
+          const msg = String(e && e.message ? e.message : e);
+          if (msg.includes("(429)") || msg.toLowerCase().includes("429")) {
+            setStatus("Preload failed: PDGA rate-limited (429). Wait a bit and try again.");
+          } else {
+            setStatus("Preload failed: unable to fetch PDGA results. See Console for details.");
+          }
+          console.error("Preload failed:", e);
+        });
+      }
+    } catch (e) {
+      console.warn("Preload hook failed:", e);
+    }
   }
 
   window.DGSTViews.home = { init };

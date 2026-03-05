@@ -73,7 +73,7 @@
   const DEBUG = String(getUrlParam("debug") || "") === "1";
 
   // Developer toggle: ?force=1 clears DGST session caches and reloads fresh from PDGA
-  const FORCE_REFRESH = String(getUrlParam("force") || "") === "1";
+  let FORCE_REFRESH_ACTIVE = String(getUrlParam("force") || "") === "1";
 
   const SERIES = (window.SERIES_CONFIG && typeof window.SERIES_CONFIG === "object")
     ? window.SERIES_CONFIG
@@ -276,7 +276,7 @@
   window.Common.formatLastRefresh = formatLastRefresh;
   window.Common.finalizePdgaRefreshIfPending = finalizePdgaRefreshIfPending;
 
-  if (FORCE_REFRESH) {
+  if (FORCE_REFRESH_ACTIVE) {
     // Mark a refresh as pending (this is what makes the timestamp represent a SUCCESSFUL fetch cycle,
     // not just a page reload).
     setRefreshPending();
@@ -288,6 +288,8 @@
     } catch {}
 
     // Keep URLs clean: remove ?force=1 after the page loads.
+    // NOTE: We still keep FORCE_REFRESH_ACTIVE true internally until the first successful
+    // results load completes, then we turn it off (one-shot force).
     try {
       setTimeout(() => {
         const u = new URL(location.href);
@@ -349,7 +351,7 @@
 
   function fetchViaProxy(targetUrl, { forceRefresh } = {}) {
     // When forcing refresh, also bust the server-side proxy disk cache.
-    const force = (FORCE_REFRESH || !!forceRefresh) ? "&force=1" : "";
+    const force = (FORCE_REFRESH_ACTIVE || !!forceRefresh) ? "&force=1" : "";
     const url = DATA.PDGA.PROXY_PREFIX + encodeURIComponent(String(targetUrl || "")) + force;
     return fetchText(url);
   }
@@ -390,6 +392,12 @@
 
   function cleanText(s) {
     return String(s ?? "").replace(/\s+/g, " ").trim();
+  }
+
+  function sleep(ms) {
+    const n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return Promise.resolve();
+    return new Promise(r => setTimeout(r, n));
   }
 
   function extractKeywordNumber(pdgaName, keyword, { maxNumber = 99 } = {}) {
@@ -798,7 +806,7 @@
 
   window.Common.getSeriesContext = async function getSeriesContext({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
-    const forcing = !!(FORCE_REFRESH || forceRefresh);
+    const forcing = !!(FORCE_REFRESH_ACTIVE || forceRefresh);
 
     // Skip reading cache if forcing.
     if (!forcing) {
@@ -1184,7 +1192,10 @@
 
   window.Common.loadAllEvents = async function loadAllEvents({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
-    const forcing = !!(FORCE_REFRESH || forceRefresh);
+
+    // One-shot force: FORCE_REFRESH_ACTIVE is set only when landing with ?force=1.
+    // We keep it active through the first successful results fetch, then turn it off.
+    const forcing = !!(FORCE_REFRESH_ACTIVE || forceRefresh);
 
     if (!forcing) {
       const cached = cacheOn ? cacheGet(CACHE.KEY_RESULTS, CACHE.TTL_RESULTS_MS) : null;
@@ -1196,7 +1207,9 @@
 
     onStatus && onStatus("Loading results from PDGA…");
 
-    const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: forcing });
+    // Results loading depends on discovery context, but we do NOT need to force-refresh
+    // discovery here (it increases request volume). Force applies to event result pages.
+    const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: false });
     const events = (ctx && ctx.events) ? ctx.events : [];
 
     const completedEvents = events.filter(e => !!e.isCompleted);
@@ -1204,12 +1217,28 @@
     if (!completedEvents.length) {
       const emptyPayload = { columns: FIXED_COLUMNS.slice(), rows: [], builtAt: Date.now(), seedUrl: DATA.PDGA.SEED_URL };
       if (cacheOn) cacheSet(CACHE.KEY_RESULTS, emptyPayload);
+
+      // If we were forcing and found no events, consume force so navigation won't keep forcing.
+      if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
+
       onStatus && onStatus("No completed events found.");
       return emptyPayload;
     }
 
+    // Throttle between event fetches to reduce PDGA 429 risk.
+    // Defaults can be overridden per-series:
+    //   SERIES.pdga.throttleMs (normal loads) default 350
+    //   SERIES.pdga.forceThrottleMs (force refresh) default 650
+    const pdgaCfg = SERIES.pdga || {};
+    const throttleMs = Number.isFinite(Number(pdgaCfg.throttleMs)) ? Number(pdgaCfg.throttleMs) : 350;
+    const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
+
+    const delayMs = forcing ? forceThrottleMs : throttleMs;
+
     const allRows = [];
-    for (const ev of completedEvents) {
+    for (let i = 0; i < completedEvents.length; i++) {
+      const ev = completedEvents[i];
+
       if (forcing) {
         // FORCE: if anything fails, abort and surface the error (no silent partial/stale refresh).
         const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
@@ -1223,6 +1252,11 @@
           console.warn("Failed to load event results:", ev, e);
         }
       }
+
+      // Delay between requests (not after the last one)
+      if (delayMs > 0 && i < completedEvents.length - 1) {
+        await sleep(delayMs);
+      }
     }
 
     const payload = {
@@ -1233,9 +1267,46 @@
     };
 
     if (cacheOn) cacheSet(CACHE.KEY_RESULTS, payload);
+    
+    // ✅ Timestamp should represent LAST SUCCESSFUL PDGA fetch cycle.
+    // We only finalize after results successfully loaded and were cached.
+    if (window.Common && typeof window.Common.finalizePdgaRefreshIfPending === "function") {
+      window.Common.finalizePdgaRefreshIfPending();
+    }
+
+    // One-shot force refresh: after a successful forced load, switch back to normal mode
+    // so navigating to Standings/Player doesn't keep forcing proxy refresh.
+    if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
 
     onStatus && onStatus(`Loaded ${allRows.length} result row(s) from PDGA.`);
     return payload;
+  };
+  
+  // =========================================================
+  // Optional: Preload results once per tab to warm session cache
+  // =========================================================
+  let __dgstPreloadPromise = null;
+
+  window.Common.preloadAllEvents = function preloadAllEvents({ onStatus } = {}) {
+    // If already preloaded (or in-flight), reuse the same promise.
+    if (__dgstPreloadPromise) return __dgstPreloadPromise;
+
+    __dgstPreloadPromise = (async () => {
+      onStatus && onStatus("Preloading PDGA results (warming cache)…");
+
+      // This will populate sessionStorage cache via loadAllEvents().
+      // Normal mode (no force) so it respects caching behavior.
+      const payload = await window.Common.loadAllEvents({ onStatus });
+
+      onStatus && onStatus(`Preload complete (${(payload.rows || []).length} rows).`);
+      return payload;
+    })().catch(err => {
+      // If preload fails (429 etc), allow later attempts.
+      __dgstPreloadPromise = null;
+      throw err;
+    });
+
+    return __dgstPreloadPromise;
   };
 
 })();

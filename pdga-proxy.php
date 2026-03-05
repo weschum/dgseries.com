@@ -103,24 +103,25 @@ function common_headers() {
 
 function send_html($body, $cacheHeader, $forceNoStore, $fetchTime, $upstreamCode) {
   common_headers();
-  if ($forceNoStore) {
-    header('Cache-Control: no-store, max-age=0');
-  } else {
-    header('Cache-Control: public, max-age=60');
-  }
+  if ($forceNoStore) header('Cache-Control: no-store, max-age=0');
+  else header('Cache-Control: public, max-age=60');
+
   header('Content-Type: text/html; charset=utf-8');
   header('X-DGST-Cache: ' . $cacheHeader);
   header('X-DGST-Fetch-Time: ' . (int)$fetchTime);
   if ($upstreamCode !== null) header('X-DGST-Upstream-Code: ' . (int)$upstreamCode);
+
   echo $body;
   exit;
 }
 
-function send_error($status, $message, $forceNoStore, $upstreamCode) {
+function send_error($status, $message, $forceNoStore, $upstreamCode, $cacheHeader) {
   common_headers();
   if ($forceNoStore) header('Cache-Control: no-store, max-age=0');
   header('Content-Type: text/plain; charset=utf-8');
+  header('X-DGST-Cache: ' . $cacheHeader);
   if ($upstreamCode !== null) header('X-DGST-Upstream-Code: ' . (int)$upstreamCode);
+
   http_response_code((int)$status);
   echo $message;
   exit;
@@ -157,7 +158,7 @@ if (!function_exists('curl_init')) {
       'method' => 'GET',
       'timeout' => $TIMEOUT,
       'header' =>
-        "User-Agent: dgst-proxy/1.2 (+https://chumworx.com/dgst)\r\n" .
+        "User-Agent: dgst-proxy/1.3 (+https://chumworx.com/dgst)\r\n" .
         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" .
         "Accept-Language: en-US,en;q=0.8\r\n" .
         "Cache-Control: no-cache\r\n" .
@@ -167,28 +168,25 @@ if (!function_exists('curl_init')) {
 
   $data = @file_get_contents($fetchUrl, false, $ctx);
 
-  if ($data === false) {
-    // FORCE must never serve stale.
+  if ($data === false || $data === null || $data === '') {
     if ($FORCE) {
-      send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", true, null);
+      send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", true, null, "FORCE ERROR (no curl)");
     }
 
-    // Non-force: may serve stale cache if allowed
     if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
       send_html($cached['body'], 'STALE (no curl)', false, $cached['time'], 200);
     }
 
-    send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", false, null);
+    send_error(502, "Upstream fetch failed (no curl and file_get_contents failed)", false, null, "ERROR (no curl)");
   }
 
   if (strlen($data) > $MAX_BYTES) {
-    send_error(413, "Upstream response too large", $FORCE, null);
+    send_error(413, "Upstream response too large", $FORCE, null, $FORCE ? "FORCE ERROR (too large)" : "ERROR (too large)");
   }
 
   // Treat stream fetch as 200 if we got bytes.
   $upstreamCode = 200;
 
-  // Cache successful response and return it
   write_cache($cacheFile, $metaFile, $data, $now);
   send_html($data, $FORCE ? 'FORCE MISS (no curl)' : 'MISS (no curl)', $FORCE, $now, $upstreamCode);
 }
@@ -201,7 +199,7 @@ curl_setopt_array($ch, array(
   CURLOPT_MAXREDIRS      => 3,
   CURLOPT_TIMEOUT        => $TIMEOUT,
   CURLOPT_CONNECTTIMEOUT => 8,
-  CURLOPT_USERAGENT      => 'dgst-proxy/1.2 (+https://chumworx.com/dgst)',
+  CURLOPT_USERAGENT      => 'dgst-proxy/1.3 (+https://chumworx.com/dgst)',
   CURLOPT_HTTPHEADER     => array(
     'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language: en-US,en;q=0.8',
@@ -220,53 +218,49 @@ curl_close($ch);
 
 $upstreamCode = (int)$code;
 
-if ($data === false) {
-  // FORCE must never serve stale.
+if ($data === false || $data === null || $data === '') {
   if ($FORCE) {
-    send_error(502, "Upstream fetch failed: " . $err, true, $upstreamCode);
+    send_error(502, "Upstream fetch failed: " . $err, true, $upstreamCode, "FORCE ERROR (curl)");
   }
 
-  // Non-force: may serve stale cache
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
     send_html($cached['body'], 'STALE (curl error)', false, $cached['time'], 200);
   }
 
-  send_error(502, "Upstream fetch failed: " . $err, false, $upstreamCode);
+  send_error(502, "Upstream fetch failed: " . $err, false, $upstreamCode, "ERROR (curl)");
 }
 
 if (strlen($data) > $MAX_BYTES) {
-  send_error(413, "Upstream response too large", $FORCE, $upstreamCode);
+  send_error(413, "Upstream response too large", $FORCE, $upstreamCode, $FORCE ? "FORCE ERROR (too large)" : "ERROR (too large)");
 }
 
-// If upstream 429 or non-2xx:
+// Upstream 429
 if ($upstreamCode === 429) {
-  // FORCE must never serve stale; return 429.
   if ($FORCE) {
-    send_error(429, "Upstream returned HTTP 429 (rate limited). Please wait and try again.", true, $upstreamCode);
+    send_error(429, "Upstream returned HTTP 429 (rate limited). Please wait and try again.", true, $upstreamCode, "FORCE ERROR (429)");
   }
 
-  // Non-force: may serve stale
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
     send_html($cached['body'], 'STALE (429)', false, $cached['time'], 200);
   }
 
-  send_error(429, "Upstream returned HTTP 429 (rate limited).", false, $upstreamCode);
+  send_error(429, "Upstream returned HTTP 429 (rate limited).", false, $upstreamCode, "ERROR (429)");
 }
 
+// Other non-2xx
 if ($upstreamCode < 200 || $upstreamCode >= 300) {
-  // FORCE must never serve stale; return upstream status.
   if ($FORCE) {
-    send_error($upstreamCode, "Upstream returned HTTP " . $upstreamCode, true, $upstreamCode);
+    send_error($upstreamCode, "Upstream returned HTTP " . $upstreamCode, true, $upstreamCode, "FORCE ERROR (http)");
   }
 
-  // Non-force: may serve stale
   if ($cached && ($now - $cached['time'] <= $ttlStaleSeconds)) {
     send_html($cached['body'], 'STALE (http error)', false, $cached['time'], 200);
   }
 
-  send_error(502, "Upstream returned HTTP " . $upstreamCode, false, $upstreamCode);
+  // Non-force: return real upstream status (better debugging), not a generic 502.
+  send_error($upstreamCode, "Upstream returned HTTP " . $upstreamCode, false, $upstreamCode, "ERROR (http)");
 }
 
-// Cache successful response and return it
+// Success
 write_cache($cacheFile, $metaFile, $data, $now);
 send_html($data, $FORCE ? 'FORCE MISS' : 'MISS', $FORCE, $now, $upstreamCode);
