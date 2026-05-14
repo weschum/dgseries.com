@@ -26,15 +26,15 @@
 
     pdga: {
       seedUrls: [
-        // Scott Withers events — official results with real players
-        "https://www.pdga.com/tour/search?td=38464&date_filter%5Bmin%5D%5Bdate%5D=2025-01-01&date_filter%5Bmax%5D%5Bdate%5D=2026-12-31",
+        // SOWS 2025-26 events — official results with real players (small set, known data)
+        "https://www.pdga.com/tour/search?OfficialName=SOWS+2025&td=&date_filter%5Bmin%5D%5Bdate%5D=2025-04-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
         // Current week — catches live, unofficial, and pending events
         "https://www.pdga.com/tour/search?date_filter%5Bmin%5D%5Bdate%5D=2026-05-10&date_filter%5Bmax%5D%5Bdate%5D=2026-05-20",
-        // Upcoming — catches registering events
+        // Scott Withers upcoming — catches registering events
         "https://www.pdga.com/tour/search?td=38464&date_filter%5Bmin%5D%5Bdate%5D=2026-06-01&date_filter%5Bmax%5D%5Bdate%5D=2027-01-01",
       ],
-      throttleMs: 400,
-      forceThrottleMs: 1500,
+      throttleMs: 800,
+      forceThrottleMs: 3000,
     },
 
     naming: {
