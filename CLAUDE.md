@@ -110,6 +110,7 @@ window.SERIES_CONFIG = {
 
 ## Known issues / next session
 - `version.js` build stamp is stale (`2026-03-05-01`) — bump before next release
-- `_shared/common-old.js` is an orphaned pre-refactor snapshot — should be deleted
 - `test-series` seed URLs need better unofficial/live coverage to actually demonstrate toggles
 - `uplay-2025-26-winter` series hasn't been force-loaded to populate its DB events yet
+- Consolidate the four `escapeHtml` duplicates across view files (use `window.Common.escapeHtml` everywhere)
+- **New view idea — "Leaders":** Show top N players in each division at a glance. Probably a new nav item / view separate from Standings. UI includes a slider or number input ("Show top [ ] players in each division") that re-renders the division-grouped sections. Each division gets its own mini-table of the top N.
