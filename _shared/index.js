@@ -200,8 +200,8 @@
 
     setStatus(`${events.length} event(s) found.`);
 
-    completedWrap.innerHTML = renderEventsTable(`Completed (${completed.length} events)`, completed);
-    upcomingWrap.innerHTML  = renderEventsTable(`Upcoming (${upcoming.length} events)`, upcoming);
+    completedWrap.innerHTML = renderEventsTable(`Past Events (${completed.length})`, completed);
+    upcomingWrap.innerHTML  = renderEventsTable(`Upcoming (${upcoming.length})`, upcoming);
     // Optional preload: warm results cache so other views don't refetch per-event.
     // This reduces repeated pulls when navigating to Standings / All Results / Player
     // in the same tab/session.
