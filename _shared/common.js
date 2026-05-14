@@ -586,6 +586,19 @@
   window.Common.shortEventLabelFromPdgaName = shortLabelFromPdgaName;
   window.Common.shortDivisionName = shortDivisionName;
 
+  window.Common.formatShortDateRange = function formatShortDateRange(startMs, endMs) {
+    function fmt(ms) {
+      if (!Number.isFinite(ms)) return null;
+      const d = new Date(ms);
+      return (d.getMonth() + 1) + "/" + d.getDate() + "/" + String(d.getFullYear()).slice(-2);
+    }
+    const s = fmt(startMs);
+    const e = fmt(endMs);
+    if (!s) return "";
+    if (!e || e === s) return s;
+    return s + " –\n" + e;
+  };
+
   window.Common.loadHeader = async function loadHeader(activeKey) {
     const slot = document.getElementById("header-slot");
     if (!slot) return;

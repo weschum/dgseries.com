@@ -26,15 +26,29 @@
       `;
     }
 
+    const fmtDate = (window.Common && typeof window.Common.formatShortDateRange === "function")
+      ? window.Common.formatShortDateRange
+      : (s, e) => "";
+
+    const STATUS_BADGE = {
+      unofficial: '<span class="status-badge status-badge--unofficial">Unoff.</span>',
+      live:       '<span class="status-badge status-badge--live">LIVE</span>',
+      registering:'<span class="status-badge status-badge--registering">Regis.</span>',
+      pending:    '<span class="status-badge status-badge--pending">Pend.</span>',
+    };
+
     const body = rows.map(ev => {
-      const name = esc(ev.pdgaName || "");
-      const url  = esc(ev.pdgaUrl || "#");
-      const date = esc(ev.dateText || "");
+      const name   = esc(ev.pdgaName || "");
+      const url    = esc(ev.pdgaUrl || "#");
+      const date   = esc(fmtDate(ev.startMs, ev.endMs) || ev.dateText || "");
+      const status = (ev.status || (ev.isCompleted ? "official" : "pending")).toLowerCase();
+      const badge  = STATUS_BADGE[status] || "";
       return `
         <tr>
           <td class="col-date">${date}</td>
           <td class="col-name">
             <a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a>
+            ${badge}
           </td>
         </tr>
       `;
