@@ -1411,8 +1411,15 @@
       const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
       const delayMs = forcing ? forceThrottleMs : throttleMs;
 
+      // On normal loads, cap new PDGA fetches per session to avoid rate-limiting.
+      // Events beyond the cap are skipped now and picked up on subsequent loads.
+      // ?force=1 bypasses the cap entirely.
+      const pdgaCfg2 = SERIES.pdga || {};
+      const newFetchCap = forcing ? Infinity : (Number.isFinite(Number(pdgaCfg2.newFetchCap)) ? Number(pdgaCfg2.newFetchCap) : 6);
+
       const allRows = [];
-      const pdgaFetchCount = includedEvents.filter(e => !dbOfficialIds.has(e.pdgaEventId)).length;
+      const eventsNeedingFetch = includedEvents.filter(e => !dbOfficialIds.has(e.pdgaEventId));
+      const pdgaFetchCount = Math.min(eventsNeedingFetch.length, newFetchCap);
       let pdgaFetchIndex = 0;
 
       for (const ev of includedEvents) {
@@ -1420,6 +1427,12 @@
         if (!forcing && dbOfficialIds.has(ev.pdgaEventId) && dbRowsByEventId[ev.pdgaEventId]) {
           for (const r of dbRowsByEventId[ev.pdgaEventId]) allRows.push(r);
           if (DEBUG) console.log("[DGST] Using DB results for:", ev.shortLabel);
+          continue;
+        }
+
+        // Cap new PDGA fetches on normal loads
+        if (!forcing && pdgaFetchIndex >= newFetchCap) {
+          if (DEBUG) console.log("[DGST] Deferring to next load (cap reached):", ev.shortLabel);
           continue;
         }
 
