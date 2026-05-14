@@ -17,6 +17,7 @@ deployment:
     - /bin/cp -a _shared "$DEPLOYPATH/"
     - /bin/cp -a sows-25-26 "$DEPLOYPATH/"
     - /bin/cp -a uplay-2025-26-winter "$DEPLOYPATH/"
+    - /bin/cp -a test-series "$DEPLOYPATH/"
 
     # --- Cleanup: ensure server doesn't retain local-only junk if it ever appears ---
     - /bin/rm -rf "$DEPLOYPATH/.pdga-cache" "$DEPLOYPATH/.git" "$DEPLOYPATH/.github" "$DEPLOYPATH/.DS_Store"

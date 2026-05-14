@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <script>
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.getRegistrations()
+        .then(function (regs) { regs.forEach(function (r) { r.unregister(); }); })
+        .catch(function () {});
+    })();
+  </script>
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DGST Test Series</title>
+
+  <script src="../_shared/version.js?v=2026-03-05-01"></script>
+  <script>
+    (function () {
+      var v = (window.SITE_BUILD || "dev") + "";
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "../_shared/styles.css?v=" + encodeURIComponent(v);
+      document.head.appendChild(link);
+    })();
+  </script>
+</head>
+
+<body data-dgst-shell="1">
+  <div id="header-slot"></div>
+  <div id="view-slot"></div>
+  <div id="footer-slot"></div>
+
+  <script>
+    (function () {
+      var v = (window.SITE_BUILD || "dev") + "";
+
+      function withV(src) {
+        return src + (src.indexOf("?") >= 0 ? "&" : "?") + "v=" + encodeURIComponent(v);
+      }
+
+      function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement("script");
+          s.src = withV(src);
+          s.onload = function () { resolve(); };
+          s.onerror = function () {
+            console.error("Failed to load script:", src);
+            reject(new Error("Failed to load script: " + src));
+          };
+          document.body.appendChild(s);
+        });
+      }
+
+      var scripts = [
+        "./series.config.js",
+        "../_shared/common.js",
+        "../_shared/index.js",
+        "../_shared/standings.js",
+        "../_shared/all-events.js",
+        "../_shared/player.js",
+        "../_shared/router.js",
+      ];
+
+      scripts.reduce(function (p, src) {
+        return p.then(function () { return loadScript(src); });
+      }, Promise.resolve());
+    })();
+  </script>
+</body>
+</html>
