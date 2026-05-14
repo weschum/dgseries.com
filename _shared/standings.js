@@ -156,20 +156,85 @@
       ? window.Common.pointsColumnName()
       : "Series Pts";
 
+    // Status toggles — shown only when the series config opts in
+    const scoringCfg = SERIES_CFG?.scoring || {};
+    const hasLiveCfg        = "defaultIncludeLive"       in scoringCfg;
+    const hasUnofficialCfg  = "defaultIncludeUnofficial" in scoringCfg;
+
+    const toggleWrap = document.getElementById("statusToggles");
+    if (toggleWrap && (hasLiveCfg || hasUnofficialCfg)) {
+      toggleWrap.style.display = "";
+      toggleWrap.innerHTML = `<span style="font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.2px;">Include</span>`;
+
+      function makeToggleBtn(storageKey, label, defaultVal) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn-toggle";
+        btn.dataset.key = storageKey;
+
+        function getActive() {
+          const raw = sessionStorage.getItem(storageKey);
+          return raw !== null ? raw === "1" : !!defaultVal;
+        }
+
+        function syncStyle() {
+          const on = getActive();
+          btn.textContent = label;
+          btn.classList.toggle("btn-toggle--on", on);
+        }
+
+        btn.addEventListener("click", () => {
+          const nowOn = !getActive();
+          sessionStorage.setItem(storageKey, nowOn ? "1" : "0");
+          syncStyle();
+          if (window.Common && typeof window.Common.clearResultsCache === "function") {
+            window.Common.clearResultsCache();
+          }
+          reloadAndRender();
+        });
+
+        syncStyle();
+        return btn;
+      }
+
+      if (hasUnofficialCfg) {
+        toggleWrap.appendChild(makeToggleBtn("dgst_include_unofficial", "Unofficial", scoringCfg.defaultIncludeUnofficial));
+      }
+      if (hasLiveCfg) {
+        toggleWrap.appendChild(makeToggleBtn("dgst_include_live", "Live", scoringCfg.defaultIncludeLive));
+      }
+    }
+
     setStatus("Loading…");
+
+    async function reloadAndRender() {
+      setStatus("Loading…");
+      try {
+        const p = await window.Common.loadAllEvents({ onStatus: setStatus });
+        rows = p.rows || [];
+        rebuildDivisionSelect();
+        refresh();
+      } catch (e) {
+        setStatus("Error reloading results.");
+      }
+    }
 
     const payload = await window.Common.loadAllEvents({ onStatus: setStatus });
     let rows = payload.rows || [];
 
-    const divisions = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
-    divisions.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
+    function rebuildDivisionSelect(preferCurrent) {
+      const current = preferCurrent ?? els.divisionSelect.value;
+      const divs = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
+      divs.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
+      els.divisionSelect.innerHTML = divs
+        .map(d => `<option value="${escapeHtml(d)}">${escapeHtml(window.Common.shortDivisionName(d))}</option>`)
+        .join("");
+      if (divs.includes(current)) els.divisionSelect.value = current;
+      else if (divs.includes(DEFAULT_DIVISION)) els.divisionSelect.value = DEFAULT_DIVISION;
+      else if (divs.length) els.divisionSelect.value = divs[0];
+    }
 
-    els.divisionSelect.innerHTML = divisions
-      .map(d => `<option value="${escapeHtml(d)}">${escapeHtml(window.Common.shortDivisionName(d))}</option>`)
-      .join("");
-
-    if (divisions.includes(DEFAULT_DIVISION)) els.divisionSelect.value = DEFAULT_DIVISION;
-    else if (divisions.length) els.divisionSelect.value = divisions[0];
+    rebuildDivisionSelect(DEFAULT_DIVISION);
 
     function refresh() {
       const div = els.divisionSelect.value;
@@ -187,20 +252,7 @@
       try {
         const p2 = await window.Common.loadAllEvents({ onStatus: () => {} });
         rows = p2.rows || [];
-
-        const divisions2 = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
-        divisions2.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
-
-        const current = els.divisionSelect.value;
-
-        els.divisionSelect.innerHTML = divisions2
-          .map(d => `<option value="${escapeHtml(d)}">${escapeHtml(window.Common.shortDivisionName(d))}</option>`)
-          .join("");
-
-        if (divisions2.includes(current)) els.divisionSelect.value = current;
-        else if (divisions2.includes(DEFAULT_DIVISION)) els.divisionSelect.value = DEFAULT_DIVISION;
-        else if (divisions2.length) els.divisionSelect.value = divisions2[0];
-
+        rebuildDivisionSelect();
         refresh();
       } catch (e) {
         // ignore

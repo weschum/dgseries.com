@@ -1498,6 +1498,13 @@
     return __dgstResultsPromise;
   };
 
+  window.Common.clearResultsCache = function clearResultsCache() {
+    __dgstResultsValue = null;
+    __dgstResultsValueAt = 0;
+    __dgstResultsPromise = null;
+    __dgstResultsPromiseMode = null;
+    try { sessionStorage.removeItem(CACHE.KEY_RESULTS); } catch {}
+  };
 
   // =========================================================
   // Optional: Preload results once per tab to warm session cache

@@ -360,6 +360,50 @@ button:active,
 .btn:active,
 .btn-secondary:active { transform: translateY(0px); opacity: 0.9; }
 
+/* Status toggle buttons (Live / Unofficial) */
+.btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  background: #fff;
+  color: #555;
+  border: 1px solid #ccc;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.btn-toggle::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ccc;
+  margin-right: 6px;
+  transition: background 0.1s;
+}
+
+.btn-toggle--on {
+  background: #e8fff0;
+  color: #000;
+  border-color: #00c843;
+}
+
+.btn-toggle--on::before { background: #00c843; }
+
+#statusToggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#statusToggles > span { margin-bottom: 2px; }
+
 /* =========================
    7) Forms / Controls
    ========================= */
@@ -724,7 +768,7 @@ select:focus-visible {
   }
 
   .control { width: 100%; }
-  button { width: 100%; }
+  button:not(.btn-toggle) { width: 100%; }
 
   /* Table sizing normalization at smallest breakpoint */
   :root {
