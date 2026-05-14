@@ -749,23 +749,23 @@
       if (!name) continue;
 
       const statusImgs = Array.from(tr.querySelectorAll("img"));
+      const statusCell = tr.querySelector(".views-field-StatusIcons");
+      const statusCellHTML = statusCell ? statusCell.innerHTML : "";
       const rowText = cleanText(tr.textContent).toLowerCase();
 
-      const hasResultsIcon = statusImgs.some(img => {
-        const alt = String(img.getAttribute("alt") || "").toLowerCase();
-        const title = String(img.getAttribute("title") || "").toLowerCase();
-        return (
-          alt.includes("official tournament results") ||
-          title.includes("official tournament results") ||
-          alt.includes("unofficial tournament results") ||
-          title.includes("unofficial tournament results")
-        );
-      });
+      let status = "pending";
+      if (statusCellHTML.includes("trophy-gray.gif") || rowText.includes("unofficial tournament results")) {
+        status = "unofficial";
+      } else if (statusCellHTML.includes("trophy.gif") || rowText.includes("official tournament results")) {
+        status = "official";
+      } else if (statusCellHTML.includes("pdga-live-link") || statusCellHTML.includes("tour/live")) {
+        status = "live";
+      } else if (statusCellHTML.includes("book.gif") || rowText.includes("tournament registration list")) {
+        status = "registering";
+      }
 
-      const isCompleted =
-        hasResultsIcon ||
-        rowText.includes("official tournament results") ||
-        rowText.includes("unofficial tournament results");
+      const isCancelled = /cancel/i.test(name);
+      const isCompleted = (status === "official" || status === "unofficial");
 
       let dateText = "";
       let startMs = null;
@@ -786,7 +786,7 @@
       const pdgaUrl = absolutizePdgaHref(href);
 
       if (DEBUG) {
-        console.log("[DGST] Seed event:", name, "=> shortLabel:", shortLabel, "date:", dateText, "completed:", isCompleted, "url:", pdgaUrl);
+        console.log("[DGST] Seed event:", name, "=> shortLabel:", shortLabel, "date:", dateText, "status:", status, "cancelled:", isCancelled, "url:", pdgaUrl);
       }
 
       seen.add(id);
@@ -795,6 +795,8 @@
         pdgaUrl,
         pdgaName: name,
         shortLabel,
+        status,
+        isCancelled,
         isCompleted,
         dateText,
         startMs,
@@ -1247,6 +1249,75 @@
     return allRows;
   }
 
+  // =========================================================
+  // DB API helpers
+  // =========================================================
+
+  const API_URL = PLATFORM_BASE_PATH + "/api.php";
+
+  async function fetchStoredResults(seriesId) {
+    try {
+      const res = await fetch(`${API_URL}?action=get_stored_results&series_id=${encodeURIComponent(seriesId)}`);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.warn("[DGST] fetchStoredResults failed:", e);
+      return null;
+    }
+  }
+
+  async function storeEventResults(seriesId, ev, rows) {
+    try {
+      await fetch(`${API_URL}?action=store_event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seriesId, event: ev, results: rows }),
+      });
+    } catch (e) {
+      console.warn("[DGST] storeEventResults failed:", e);
+    }
+  }
+
+  function dbRowToDisplayRow(r, ev, pointsCol) {
+    const row = {};
+    row["Event"]    = ev.shortLabel;
+    row["Division"] = r.division || "";
+    row[pointsCol]  = r.points != null ? String(r.points) : "";
+    row["Place"]    = r.place   || "";
+    row["Name"]     = r.name    || "";
+    row["PDGA#"]    = r.pdgaNum || "";
+    row["Rating"]   = r.rating  || "";
+    row["Par"]      = r.par     || "";
+    row["Total"]    = r.total   || "";
+    row["Prize"]    = r.prize   || "";
+    for (let i = 1; i <= 10; i++) {
+      row[`Rd${i}`]        = r[`rd${i}`]        || "";
+      row[`Rd${i} rating`] = r[`rd${i}Rating`]  || "";
+    }
+    row["_fromDb"] = true;
+    return row;
+  }
+
+  function displayRowToDbResultRow(row, division, pointsCol) {
+    const r = {
+      division,
+      place:   row["Place"]   || "",
+      points:  row[pointsCol] !== "" ? parseFloat(row[pointsCol]) : null,
+      name:    row["Name"]    || "",
+      pdgaNum: row["PDGA#"]   || "",
+      rating:  row["Rating"]  || "",
+      par:     row["Par"]     || "",
+      total:   row["Total"]   || "",
+      prize:   row["Prize"]   || "",
+      pdgaPts: row["PDGA Pts"] || "",
+    };
+    for (let i = 1; i <= 10; i++) {
+      r[`rd${i}`]        = row[`Rd${i}`]        || "";
+      r[`rd${i}Rating`]  = row[`Rd${i} rating`] || "";
+    }
+    return r;
+  }
+
   window.Common.loadAllEvents = async function loadAllEvents({ onStatus, forceRefresh } = {}) {
     const cacheOn = cacheEnabledByDefault();
 
@@ -1281,59 +1352,100 @@
 
     __dgstResultsPromiseMode = mode;
     __dgstResultsPromise = (async () => {
-      onStatus && onStatus("Loading results from PDGA…");
+      // Status-include toggles: series config defaults, overridable per session
+      const scoringCfg = SERIES.scoring || {};
+      const includeLive        = !!(sessionStorage.getItem("dgst_include_live")        ?? scoringCfg.defaultIncludeLive);
+      const includeUnofficial  = !!(sessionStorage.getItem("dgst_include_unofficial")  ?? scoringCfg.defaultIncludeUnofficial);
+
+      function shouldInclude(ev) {
+        if (ev.isCancelled) return false;
+        // Fall back to isCompleted for events cached before status field was added
+        const s = ev.status || (ev.isCompleted ? "official" : "pending");
+        if (s === "official")                      return true;
+        if (s === "unofficial" && includeUnofficial) return true;
+        if (s === "live"       && includeLive)       return true;
+        return false;
+      }
 
       // Results loading depends on discovery context, but we do NOT need to force-refresh
       // discovery here (it increases request volume). Force applies to event result pages.
       const ctx = await window.Common.getSeriesContext({ onStatus, forceRefresh: false });
       const events = (ctx && ctx.events) ? ctx.events : [];
 
-      const completedEvents = events.filter(e => !!e.isCompleted);
+      const includedEvents = events.filter(shouldInclude);
 
-      if (!completedEvents.length) {
+      if (!includedEvents.length) {
         const emptyPayload = { columns: FIXED_COLUMNS.slice(), rows: [], builtAt: Date.now(), seedUrl: DATA.PDGA.SEED_URL };
         if (cacheOn) cacheSet(CACHE.KEY_RESULTS, emptyPayload);
 
         __dgstResultsValue = emptyPayload;
         __dgstResultsValueAt = Date.now();
 
-        // If we were forcing and found no events, consume force so navigation won't keep forcing.
         if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
 
-        onStatus && onStatus("No completed events found.");
+        onStatus && onStatus("No events found.");
         return emptyPayload;
       }
 
-      // Throttle between event fetches to reduce PDGA 429 risk.
-      // Defaults can be overridden per-series:
-      //   SERIES.pdga.throttleMs (normal loads) default 350
-      //   SERIES.pdga.forceThrottleMs (force refresh) default 650
-      const pdgaCfg = SERIES.pdga || {};
-      const throttleMs = Number.isFinite(Number(pdgaCfg.throttleMs)) ? Number(pdgaCfg.throttleMs) : 350;
-      const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
+      // Fetch stored official results from DB (skip on force refresh so we re-scrape PDGA)
+      const dbData = forcing ? null : await fetchStoredResults(SERIES_ID);
+      const dbRowsByEventId = {};
+      const dbOfficialIds = new Set();
+      if (dbData && dbData.events && dbData.results) {
+        for (const dbEv of dbData.events) {
+          if (dbEv.status === "official") dbOfficialIds.add(dbEv.pdgaEventId);
+        }
+        for (const r of dbData.results) {
+          const dbEv = dbData.events.find(e => e.id === r.eventId);
+          if (!dbEv || !dbOfficialIds.has(dbEv.pdgaEventId)) continue;
+          if (!dbRowsByEventId[dbEv.pdgaEventId]) dbRowsByEventId[dbEv.pdgaEventId] = [];
+          dbRowsByEventId[dbEv.pdgaEventId].push(dbRowToDisplayRow(r, dbEv, POINTS_COL));
+        }
+        if (DEBUG) console.log("[DGST] DB: official event IDs:", [...dbOfficialIds]);
+      }
 
+      onStatus && onStatus("Loading results…");
+
+      const pdgaCfg = SERIES.pdga || {};
+      const throttleMs      = Number.isFinite(Number(pdgaCfg.throttleMs))      ? Number(pdgaCfg.throttleMs)      : 350;
+      const forceThrottleMs = Number.isFinite(Number(pdgaCfg.forceThrottleMs)) ? Number(pdgaCfg.forceThrottleMs) : 650;
       const delayMs = forcing ? forceThrottleMs : throttleMs;
 
       const allRows = [];
-      for (let i = 0; i < completedEvents.length; i++) {
-        const ev = completedEvents[i];
+      const pdgaFetchCount = includedEvents.filter(e => !dbOfficialIds.has(e.pdgaEventId)).length;
+      let pdgaFetchIndex = 0;
 
+      for (const ev of includedEvents) {
+        // Use DB rows for official events (unless forcing a refresh)
+        if (!forcing && dbOfficialIds.has(ev.pdgaEventId) && dbRowsByEventId[ev.pdgaEventId]) {
+          for (const r of dbRowsByEventId[ev.pdgaEventId]) allRows.push(r);
+          if (DEBUG) console.log("[DGST] Using DB results for:", ev.shortLabel);
+          continue;
+        }
+
+        // Scrape PDGA for this event
+        let scrapedRows = [];
         if (forcing) {
-          // FORCE: if anything fails, abort and surface the error (no silent partial/stale refresh).
-          const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
-          for (const r of rows) allRows.push(r);
+          scrapedRows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: true });
         } else {
-          // Normal browsing: best-effort per event.
           try {
-            const rows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: false });
-            for (const r of rows) allRows.push(r);
+            scrapedRows = await fetchEventResultsRows(ev, { onStatus, forceRefresh: false });
           } catch (e) {
             console.warn("Failed to load event results:", ev, e);
           }
         }
 
-        // Delay between requests (not after the last one)
-        if (delayMs > 0 && i < completedEvents.length - 1) {
+        for (const r of scrapedRows) allRows.push(r);
+
+        // Store official events in DB for future loads
+        if (ev.status === "official" && scrapedRows.length) {
+          const dbResults = scrapedRows.map(r => displayRowToDbResultRow(r, r["Division"] || "", POINTS_COL));
+          storeEventResults(SERIES_ID, ev, dbResults);
+        }
+
+        // Throttle only between PDGA fetches
+        pdgaFetchIndex++;
+        if (delayMs > 0 && pdgaFetchIndex < pdgaFetchCount) {
           await sleep(delayMs);
         }
       }
@@ -1360,7 +1472,7 @@
       // so navigating to Standings/Player doesn't keep forcing proxy refresh.
       if (FORCE_REFRESH_ACTIVE) FORCE_REFRESH_ACTIVE = false;
 
-      onStatus && onStatus(`Loaded ${allRows.length} result row(s) from PDGA.`);
+      onStatus && onStatus(`Loaded ${allRows.length} result row(s).`);
       return payload;
     })().catch(err => {
       __dgstResultsValue = null;

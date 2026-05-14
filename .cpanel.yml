@@ -13,6 +13,7 @@ deployment:
     # --- Deploy core site files/folders ---
     - /bin/cp -a index.html "$DEPLOYPATH/"
     - /bin/cp -a pdga-proxy.php "$DEPLOYPATH/"
+    - /bin/cp -a api.php "$DEPLOYPATH/"
     - /bin/cp -a _shared "$DEPLOYPATH/"
     - /bin/cp -a sows-25-26 "$DEPLOYPATH/"
     - /bin/cp -a uplay-2025-26-winter "$DEPLOYPATH/"
