@@ -433,7 +433,7 @@
             <label>Live toggle <span class="hint">show toggle button on standings?</span></label>
             <select id="toggleLive">
               <option value="hidden">Hidden (no toggle button)</option>
-              <option value="false">Show — default OFF</option>
+              <option value="false" selected>Show — default OFF</option>
               <option value="true">Show — default ON</option>
             </select>
           </div>
@@ -441,7 +441,7 @@
             <label>Unofficial toggle</label>
             <select id="toggleUnofficial">
               <option value="hidden">Hidden (no toggle button)</option>
-              <option value="false">Show — default OFF</option>
+              <option value="false" selected>Show — default OFF</option>
               <option value="true">Show — default ON</option>
             </select>
           </div>
@@ -616,9 +616,25 @@
   syncColor(accentPicker, accentHex);
   syncColor(borderPicker, borderHex);
 
+  // ── Number to words (for auto-description) ──────────────────────────────
+
+  var NUM_WORDS = ["Zero","One","Two","Three","Four","Five","Six","Seven","Eight",
+                   "Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen",
+                   "Sixteen","Seventeen","Eighteen","Nineteen","Twenty"];
+
+  function numToWords(n) {
+    return (n >= 0 && n <= 20) ? NUM_WORDS[n] : String(n);
+  }
+
+  function autoDescription() {
+    var te = parseInt(topEvents.value) || 4;
+    return "Points Total = Top " + numToWords(te) + " Event Results";
+  }
+
   // ── Auto-slug from title ─────────────────────────────────────────────────
 
   var slugManuallyEdited = false;
+  var descriptionManuallyEdited = false;
 
   seriesId.addEventListener("input", function () {
     slugManuallyEdited = !!seriesId.value;
@@ -631,6 +647,22 @@
     }
     update();
   });
+
+  // ── Auto-description from topEvents ─────────────────────────────────────
+
+  description.addEventListener("input", function () {
+    descriptionManuallyEdited = !!description.value;
+  });
+
+  topEvents.addEventListener("input", function () {
+    if (!descriptionManuallyEdited) {
+      description.value = autoDescription();
+    }
+    update();
+  });
+
+  // Set initial description value
+  description.value = autoDescription();
 
   // ── Attach all other change listeners ───────────────────────────────────
 
