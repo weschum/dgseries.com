@@ -11,7 +11,7 @@
   <meta property="og:image" content="https://dgseries.com/_shared/images/logo_share.jpg">
   <meta property="og:url" content="https://dgseries.com/">
   <meta property="og:type" content="website">
-  
+
   <style>
     body {
       margin: 0;
@@ -43,13 +43,14 @@
     }
 
     .series-card {
-      display: block;
-      padding: 16px;
+      display: flex;
+      align-items: stretch;
       border-radius: 10px;
       background: #fff;
       border: 1px solid #ddd;
       text-decoration: none;
       color: inherit;
+      overflow: hidden;
       transition: box-shadow 0.15s ease, transform 0.15s ease;
     }
 
@@ -58,15 +59,31 @@
       transform: translateY(-1px);
     }
 
+    .series-card-accent {
+      width: 6px;
+      flex-shrink: 0;
+      background: #ccc;
+    }
+
+    .series-card-body {
+      padding: 14px 16px;
+    }
+
     .series-name {
       font-size: 1.05rem;
       font-weight: 600;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
     }
 
     .series-meta {
       font-size: 0.9rem;
       color: #555;
+    }
+
+    .series-loading {
+      text-align: center;
+      color: #888;
+      padding: 20px 0;
     }
 
     footer {
@@ -83,21 +100,64 @@
     <h1>Disc Golf Series Tracker</h1>
     <p class="subtitle">Select a series to view standings and results</p>
 
-    <div class="series-list">
-      <a class="series-card" href="/sows-25-26/">
-        <div class="series-name">Southern Oregon Winter Series</div>
-        <div class="series-meta">2025–2026</div>
-      </a>
-
-      <a class="series-card" href="/uplay-2025-26-winter/">
-        <div class="series-name">UPlay Winter Series</div>
-        <div class="series-meta">2025–2026</div>
-      </a>
+    <div class="series-list" id="seriesList">
+      <div class="series-loading">Loading series…</div>
     </div>
 
-    <footer>
-      Powered by DGST
-    </footer>
+    <footer>Powered by DGST</footer>
   </div>
+
+  <script>
+    (function () {
+      var list = document.getElementById("seriesList");
+
+      function escHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function renderCards(series) {
+        if (!series || !series.length) {
+          list.innerHTML = "<p style='text-align:center;color:#888;'>No series found.</p>";
+          return;
+        }
+        list.innerHTML = series.map(function (s) {
+          var accent = escHtml(s.accent || "#cccccc");
+          var title  = escHtml(s.title  || s.slug);
+          var sub    = escHtml(s.subtitle || "");
+          var href   = "/" + escHtml(s.slug) + "/";
+          return (
+            '<a class="series-card" href="' + href + '">' +
+              '<div class="series-card-accent" style="background:' + accent + '"></div>' +
+              '<div class="series-card-body">' +
+                '<div class="series-name">' + title + '</div>' +
+                (sub ? '<div class="series-meta">' + sub + '</div>' : '') +
+              '</div>' +
+            '</a>'
+          );
+        }).join("");
+      }
+
+      fetch("/series-registry.json?_=" + Date.now())
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          renderCards(data.series || []);
+        })
+        .catch(function (err) {
+          console.warn("series-registry.json load failed:", err);
+          // Fallback: hardcoded list so the page stays useful if registry is missing
+          renderCards([
+            { slug: "sows-25-26",            title: "Southern Oregon Winter Series", subtitle: "2025–2026", accent: "#f5ff00" },
+            { slug: "uplay-2025-26-winter",   title: "UPlay Winter Series",           subtitle: "2025–2026", accent: "#7ed2c6" }
+          ]);
+        });
+    })();
+  </script>
 </body>
 </html>

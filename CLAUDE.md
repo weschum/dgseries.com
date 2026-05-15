@@ -32,6 +32,9 @@ A disc golf series standings tracker. Vanilla JS + PHP, deployed on Namecheap sh
       standings.html
       all-events.html
       player.html
+  series-registry.json  ← manifest of public series (read by index.html, written by generator)
+  tools/
+    new-series.html     ← series generator form (File System Access API, Chrome/Edge)
   sows-25-26/           ← SOWS 2025-26 series
     series.config.js
     index.html
@@ -42,6 +45,19 @@ A disc golf series standings tracker. Vanilla JS + PHP, deployed on Namecheap sh
     series.config.js
     index.html
 ```
+
+## Series generator (`/tools/new-series.html`)
+- Fill in the form → click **Save to Repo** → pick the local repo folder (Chrome File System Access API)
+- Writes: `{slug}/series.config.js`, `{slug}/index.html`, updates `series-registry.json`
+- Fallback: **Download ZIP** button for non-Chrome browsers (files need to be placed manually)
+- After saving, shows the git commands to commit + deploy
+- `test-series` is NOT in `series-registry.json` (dev-only, accessed directly by URL)
+
+## series-registry.json
+- Root-level JSON file listing public series: `{ "series": [{ slug, title, subtitle, accent }] }`
+- `index.html` fetches it at runtime to render series cards dynamically
+- Generator appends new entries when a series is created
+- Add a series to the registry manually to show it on the home page without using the generator
 
 ## PDGA event status model
 | Status | Meaning | In standings by default |
@@ -108,11 +124,11 @@ window.SERIES_CONFIG = {
 ```
 
 ## Version bumping
-`_shared/version.js` holds `window.SITE_BUILD`. Bump it on every release — it busts all client caches. Current value as of last session: `2026-03-05-01` (stale — needs a bump).
+`_shared/version.js` holds `window.SITE_BUILD`. Bump it on every release — it busts all client caches. Current value: `2026-05-15-01`.
 
 ## Known issues / next session
-- `version.js` build stamp is stale (`2026-03-05-01`) — bump before next release
-- `test-series` seed URLs need better unofficial/live coverage to actually demonstrate toggles
 - `uplay-2025-26-winter` series hasn't been force-loaded to populate its DB events yet
 - Consolidate the four `escapeHtml` duplicates across view files (use `window.Common.escapeHtml` everywhere)
-- **New view idea — "Leaders":** Show top N players in each division at a glance. Probably a new nav item / view separate from Standings. UI includes a slider or number input ("Show top [ ] players in each division") that re-renders the division-grouped sections. Each division gets its own mini-table of the top N.
+- Generator: consider adding a "subtitle" field auto-generated from date range, and a preview of the home-page card
+- Index page: consider fetching series home view data (event count, last updated) to show in cards
+- Search/filter on index page once series count grows
