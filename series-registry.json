@@ -11,6 +11,18 @@
       "title": "UPlay Winter Series",
       "subtitle": "2025–2026",
       "accent": "#7ed2c6"
+    },
+    {
+      "slug": "oregon-test-series",
+      "title": "Oregon Test Series",
+      "subtitle": "This one is FAKE!",
+      "accent": "#f415b9"
+    },
+    {
+      "slug": "second-test-series",
+      "title": "Second Test Series",
+      "subtitle": "This has the same events as the other test series. BORING!",
+      "accent": "#00ff3b"
     }
   ]
 }
