@@ -465,8 +465,9 @@ button:active,
 
 #statusToggles {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 #statusToggles > span { margin-bottom: 2px; }
