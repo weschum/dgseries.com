@@ -709,10 +709,22 @@
       slot.innerHTML = html;
 
       const pills = slot.querySelectorAll(".nav-pill");
+      let activePill = null;
       pills.forEach(a => {
         const key = a.getAttribute("data-nav") || "";
-        if (key === activeKey) a.classList.add("is-active", "active");
+        if (key === activeKey) { a.classList.add("is-active", "active"); activePill = a; }
       });
+
+      // Scroll the active pill to center of the nav row (mobile scroll hint)
+      if (activePill) {
+        requestAnimationFrame(() => {
+          const nav = activePill.closest("nav");
+          if (nav) {
+            const offset = activePill.offsetLeft - (nav.clientWidth / 2) + (activePill.offsetWidth / 2);
+            nav.scrollLeft = Math.max(0, offset);
+          }
+        });
+      }
 
       const branding = SERIES.branding || {};
       const titleText = typeof branding.titleText === "string" ? branding.titleText.trim() : "";
