@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>New Series – DGST</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 16px 60px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 1.6rem;
+    }
+
+    .page-sub {
+      color: #666;
+      margin: 0 0 28px;
+      font-size: 0.95rem;
+    }
+
+    /* ── Layout: two-column on wider screens ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 640px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+
+    .form-col { display: flex; flex-direction: column; gap: 18px; }
+    .preview-col { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 18px 18px 20px;
+    }
+
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #666;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    /* ── Form fields ── */
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #444;
+    }
+
+    label .hint {
+      font-weight: 400;
+      color: #888;
+      font-size: 0.8rem;
+      margin-left: 6px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      color: #222;
+      background: #fafafa;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: #4c9be8;
+      background: #fff;
+    }
+
+    input.invalid { border-color: #e05252; }
+
+    textarea { resize: vertical; font-family: monospace; font-size: 0.85rem; min-height: 80px; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .color-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .color-row input[type="color"] {
+      width: 44px;
+      height: 36px;
+      padding: 2px 3px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+      background: none;
+      flex-shrink: 0;
+    }
+
+    .color-row input[type="text"] {
+      flex: 1;
+      font-family: monospace;
+    }
+
+    .error-msg {
+      color: #c0392b;
+      font-size: 0.8rem;
+      min-height: 16px;
+    }
+
+    /* ── Preview ── */
+    .preview-code {
+      background: #1a1a2e;
+      color: #a8d8a8;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      white-space: pre;
+      overflow-x: auto;
+      min-height: 120px;
+    }
+
+    .preview-code .cm { color: #6a9fb5; }  /* comment */
+    .preview-code .kw { color: #c099ff; }  /* keyword */
+    .preview-code .st { color: #ffd080; }  /* string */
+    .preview-code .nm { color: #80cbc4; }  /* number */
+    .preview-code .ky { color: #a8d8a8; }  /* key */
+
+    .card-result {
+      background: #fff8e1;
+      border-color: #f0c040;
+    }
+
+    .result-files {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .result-files li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #f0e090;
+      font-family: monospace;
+      font-size: 0.88rem;
+    }
+
+    .result-files li:last-child { border-bottom: none; }
+
+    .result-files .icon { font-size: 1rem; }
+
+    .checklist {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+    }
+
+    .checklist li {
+      padding: 4px 0;
+      display: flex;
+      gap: 8px;
+      font-size: 0.88rem;
+    }
+
+    .checklist code {
+      background: #f5f0e0;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.82rem;
+    }
+
+    /* ── Buttons ── */
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.1s;
+      text-decoration: none;
+    }
+
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.45; cursor: default; }
+
+    .btn-primary {
+      background: #4c9be8;
+      color: #fff;
+    }
+
+    .btn-primary:hover:not(:disabled) { background: #3a8ad4; }
+
+    .btn-secondary {
+      background: #eee;
+      color: #333;
+    }
+
+    .btn-secondary:hover:not(:disabled) { background: #e0e0e0; }
+
+    .btn-success {
+      background: #27ae60;
+      color: #fff;
+    }
+
+    /* ── Status messages ── */
+    .status-banner {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .status-banner.show { display: block; }
+
+    .status-banner.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-banner.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .no-fsapi-note {
+      font-size: 0.82rem;
+      color: #888;
+      margin-top: 6px;
+      display: none;
+    }
+
+    /* ── Git commands block ── */
+    .git-block {
+      background: #1a1a2e;
+      color: #a8d8a8;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-family: monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      white-space: pre;
+      overflow-x: auto;
+      display: none;
+    }
+
+    .git-block.show { display: block; }
+
+    /* ── Collapsible sections ── */
+    details summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 14px;
+    }
+
+    details summary::before {
+      content: "▶";
+      font-size: 0.65rem;
+      transition: transform 0.2s;
+    }
+
+    details[open] summary::before { transform: rotate(90deg); }
+  </style>
+</head>
+
+<body>
+<div class="page">
+  <h1>New Series</h1>
+  <p class="page-sub">Fill in the fields below — files are written directly to your local repo.</p>
+
+  <div class="layout">
+
+    <!-- ── LEFT: Form ── -->
+    <div class="form-col">
+
+      <!-- Identity -->
+      <div class="card">
+        <h2>Identity</h2>
+        <div class="field">
+          <label>Series Title <span class="hint">displayed in header</span></label>
+          <input type="text" id="titleText" placeholder="e.g. Portland Summer Series" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Series ID <span class="hint">slug — folder name</span></label>
+          <input type="text" id="seriesId" placeholder="e.g. portland-summer-2026" autocomplete="off" />
+          <span class="error-msg" id="slugError"></span>
+        </div>
+        <div class="field">
+          <label>Subtitle <span class="hint">shown on home page card</span></label>
+          <input type="text" id="subtitle" placeholder="e.g. 2026" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- PDGA Discovery -->
+      <div class="card">
+        <h2>PDGA Discovery</h2>
+        <div class="field">
+          <label>Seed URLs <span class="hint">one per line — <a href="https://www.pdga.com/tour/search" target="_blank" rel="noopener">build at pdga.com/tour/search</a></span></label>
+          <textarea id="seedUrls" rows="4" placeholder="https://www.pdga.com/tour/search?td=XXXXX&date_filter..."></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Throttle <span class="hint">ms</span></label>
+            <input type="number" id="throttleMs" value="800" min="100" max="10000" />
+          </div>
+          <div class="field">
+            <label>Force throttle <span class="hint">ms</span></label>
+            <input type="number" id="forceThrottleMs" value="3000" min="100" max="30000" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Theme -->
+      <div class="card">
+        <details>
+          <summary>Theme</summary>
+          <div class="field">
+            <label>Accent color</label>
+            <div class="color-row">
+              <input type="color" id="accentPicker" value="#00ff3b" />
+              <input type="text" id="accentHex" value="#00ff3b" maxlength="7" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Nav border color</label>
+            <div class="color-row">
+              <input type="color" id="borderPicker" value="#000000" />
+              <input type="text" id="borderHex" value="#000000" maxlength="7" />
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Naming -->
+      <div class="card">
+        <details>
+          <summary>Naming</summary>
+          <div class="field">
+            <label>Stop words <span class="hint">comma-separated — stripped from event labels</span></label>
+            <input type="text" id="stopWords" placeholder="e.g. portland, 2026, presented, by" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label>Max label words</label>
+            <input type="number" id="maxWords" value="5" min="1" max="10" />
+          </div>
+        </details>
+      </div>
+
+      <!-- Scoring -->
+      <div class="card">
+        <details>
+          <summary>Scoring</summary>
+          <div class="field-row">
+            <div class="field">
+              <label>Points column name</label>
+              <input type="text" id="pointsColumnName" value="Series Pts" />
+            </div>
+            <div class="field">
+              <label>Points base <span class="hint">1st = base−1</span></label>
+              <input type="number" id="pointsBase" value="101" min="2" max="10000" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Live toggle <span class="hint">show toggle button on standings?</span></label>
+            <select id="toggleLive">
+              <option value="hidden">Hidden (no toggle button)</option>
+              <option value="false">Show — default OFF</option>
+              <option value="true">Show — default ON</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Unofficial toggle</label>
+            <select id="toggleUnofficial">
+              <option value="hidden">Hidden (no toggle button)</option>
+              <option value="false">Show — default OFF</option>
+              <option value="true">Show — default ON</option>
+            </select>
+          </div>
+        </details>
+      </div>
+
+      <!-- Standings -->
+      <div class="card">
+        <details>
+          <summary>Standings</summary>
+          <div class="field-row">
+            <div class="field">
+              <label>Top events counted</label>
+              <input type="number" id="topEvents" value="4" min="1" max="100" />
+            </div>
+            <div class="field">
+              <label>Max total points <span class="hint">0 = auto</span></label>
+              <input type="number" id="maxTotal" value="0" min="0" max="100000" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Description <span class="hint">shown below "Series Standings" heading</span></label>
+            <input type="text" id="description" placeholder="e.g. Points Total = Top Four Event Results" autocomplete="off" />
+          </div>
+        </details>
+      </div>
+
+    </div><!-- /form-col -->
+
+    <!-- ── RIGHT: Preview & Output ── -->
+    <div class="preview-col">
+
+      <div class="card">
+        <h2>series.config.js preview</h2>
+        <div class="preview-code" id="configPreview">…fill in the form to preview…</div>
+      </div>
+
+      <div class="card">
+        <h2>Files to create</h2>
+        <ul class="result-files" id="fileList">
+          <li><span class="icon">📄</span><span id="configPath">—</span></li>
+          <li><span class="icon">🌐</span><span id="indexPath">—</span></li>
+          <li><span class="icon">📋</span>series-registry.json <em style="color:#888;font-size:0.8rem">(updated)</em></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Save to repo</h2>
+        <p style="font-size:0.88rem;color:#555;margin:0 0 12px;">
+          Click <strong>Save to Repo</strong>, then select your local <code>dgseries.com</code> repo folder.
+          Files will be written directly into it.
+        </p>
+        <div class="actions">
+          <button class="btn btn-primary" id="btnSave" disabled>
+            💾 Save to Repo
+          </button>
+          <button class="btn btn-secondary" id="btnDownload" disabled>
+            ⬇ Download ZIP
+          </button>
+        </div>
+        <p class="no-fsapi-note" id="noFsApiNote">
+          Your browser doesn't support the File System Access API.<br>
+          Use <strong>Download ZIP</strong> to get the files, then unzip into your repo folder.
+        </p>
+        <div class="status-banner" id="statusBanner"></div>
+      </div>
+
+      <div class="card git-card" id="gitCard" style="display:none;">
+        <h2>Next steps</h2>
+        <div class="git-block show" id="gitCommands"></div>
+      </div>
+
+    </div><!-- /preview-col -->
+
+  </div><!-- /layout -->
+</div><!-- /page -->
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Utilities ──────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return String(s)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
+  }
+
+  function slugify(s) {
+    return s.toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function isValidSlug(s) {
+    return /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(s) || /^[a-z0-9]$/.test(s);
+  }
+
+  function hexToColor(hex) {
+    // normalize to 7-char #rrggbb
+    hex = hex.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
+      return "#" + hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3];
+    }
+    return null;
+  }
+
+  // ── DOM refs ────────────────────────────────────────────────────────────────
+
+  var $  = function (id) { return document.getElementById(id); };
+
+  var titleText       = $("titleText");
+  var seriesId        = $("seriesId");
+  var subtitle        = $("subtitle");
+  var seedUrls        = $("seedUrls");
+  var throttleMs      = $("throttleMs");
+  var forceThrottleMs = $("forceThrottleMs");
+  var accentPicker    = $("accentPicker");
+  var accentHex       = $("accentHex");
+  var borderPicker    = $("borderPicker");
+  var borderHex       = $("borderHex");
+  var stopWords       = $("stopWords");
+  var maxWords        = $("maxWords");
+  var pointsColumnName= $("pointsColumnName");
+  var pointsBase      = $("pointsBase");
+  var toggleLive      = $("toggleLive");
+  var toggleUnofficial= $("toggleUnofficial");
+  var topEvents       = $("topEvents");
+  var maxTotal        = $("maxTotal");
+  var description     = $("description");
+
+  var configPreview   = $("configPreview");
+  var slugError       = $("slugError");
+  var configPath      = $("configPath");
+  var indexPath       = $("indexPath");
+  var btnSave         = $("btnSave");
+  var btnDownload     = $("btnDownload");
+  var noFsApiNote     = $("noFsApiNote");
+  var statusBanner    = $("statusBanner");
+  var gitCard         = $("gitCard");
+  var gitCommands     = $("gitCommands");
+
+  // ── Check FSAPI support ──────────────────────────────────────────────────
+
+  var hasFsApi = typeof window.showDirectoryPicker === "function";
+
+  if (!hasFsApi) {
+    noFsApiNote.style.display = "block";
+  }
+
+  // ── Color picker sync ────────────────────────────────────────────────────
+
+  function syncColor(picker, textInput) {
+    picker.addEventListener("input", function () {
+      textInput.value = picker.value;
+      update();
+    });
+    textInput.addEventListener("input", function () {
+      var c = hexToColor(textInput.value);
+      if (c) {
+        picker.value = c;
+        textInput.classList.remove("invalid");
+      } else {
+        textInput.classList.add("invalid");
+      }
+      update();
+    });
+  }
+
+  syncColor(accentPicker, accentHex);
+  syncColor(borderPicker, borderHex);
+
+  // ── Auto-slug from title ─────────────────────────────────────────────────
+
+  var slugManuallyEdited = false;
+
+  seriesId.addEventListener("input", function () {
+    slugManuallyEdited = !!seriesId.value;
+    update();
+  });
+
+  titleText.addEventListener("input", function () {
+    if (!slugManuallyEdited) {
+      seriesId.value = slugify(titleText.value);
+    }
+    update();
+  });
+
+  // ── Attach all other change listeners ───────────────────────────────────
+
+  [subtitle, seedUrls, throttleMs, forceThrottleMs,
+   stopWords, maxWords, pointsColumnName, pointsBase,
+   toggleLive, toggleUnofficial, topEvents, maxTotal, description].forEach(function (el) {
+    el.addEventListener("input", update);
+    el.addEventListener("change", update);
+  });
+
+  // ── Build config string ──────────────────────────────────────────────────
+
+  function buildConfig() {
+    var slug       = seriesId.value.trim();
+    var title      = titleText.value.trim();
+    var accent     = hexToColor(accentHex.value) || accentHex.value.trim();
+    var border     = hexToColor(borderHex.value) || borderHex.value.trim();
+    var urls       = seedUrls.value.split("\n").map(function(u){ return u.trim(); }).filter(Boolean);
+    var thr        = parseInt(throttleMs.value) || 800;
+    var fThr       = parseInt(forceThrottleMs.value) || 3000;
+    var sw         = stopWords.value.split(",").map(function(w){ return w.trim().toLowerCase(); }).filter(Boolean);
+    var mw         = parseInt(maxWords.value) || 5;
+    var pcn        = pointsColumnName.value.trim() || "Series Pts";
+    var pb         = parseInt(pointsBase.value) || 101;
+    var tl         = toggleLive.value;
+    var tu         = toggleUnofficial.value;
+    var te         = parseInt(topEvents.value) || 4;
+    var mt         = parseInt(maxTotal.value) || 0;
+    var desc       = description.value.trim();
+
+    var autoMax    = te * (pb - 1);
+    var effectiveMax = mt > 0 ? mt : autoMax;
+
+    var lines = [];
+    lines.push("// " + (title || "New Series") + " — series configuration");
+    lines.push("// Defaults documented in _shared/series.config.template.js");
+    lines.push("window.SERIES_CONFIG = {");
+    lines.push("  identity: {");
+    lines.push("    seriesId: \"" + esc(slug || "your-series-slug") + "\",");
+    lines.push("  },");
+    lines.push("");
+    lines.push("  branding: {");
+    lines.push("    titleText: \"" + esc(title || "Your Series Name") + "\",");
+    lines.push("  },");
+    lines.push("");
+    lines.push("  theme: {");
+    lines.push("    accent: \"" + esc(accent) + "\",");
+    lines.push("    nav: {");
+    lines.push("      borderColor:   \"" + esc(border) + "\",");
+    lines.push("      borderWidthPx: 1,");
+    lines.push("      radiusPx:      8,");
+    lines.push("      fontWeight:    700,");
+    lines.push("    },");
+    lines.push("  },");
+    lines.push("");
+    lines.push("  pdga: {");
+    lines.push("    seedUrls: [");
+    if (urls.length) {
+      urls.forEach(function(u) {
+        lines.push("      \"" + esc(u) + "\",");
+      });
+    } else {
+      lines.push("      // Add seed URLs here — build at pdga.com/tour/search");
+    }
+    lines.push("    ],");
+    lines.push("    throttleMs:      " + thr + ",");
+    lines.push("    forceThrottleMs: " + fThr + ",");
+    lines.push("  },");
+    lines.push("");
+    lines.push("  naming: {");
+    lines.push("    shortLabelMaxWords:  " + mw + ",");
+    if (sw.length) {
+      lines.push("    shortLabelStopWords: [" + sw.map(function(w){ return "\"" + esc(w) + "\""; }).join(", ") + "],");
+    } else {
+      lines.push("    shortLabelStopWords: [],");
+    }
+    lines.push("  },");
+    lines.push("");
+    lines.push("  scoring: {");
+    lines.push("    pointsColumnName: \"" + esc(pcn) + "\",");
+    lines.push("    points: { type: \"linear\", base: " + pb + " },");
+    if (tl !== "hidden") {
+      lines.push("    defaultIncludeLive:       " + (tl === "true") + ",");
+    }
+    if (tu !== "hidden") {
+      lines.push("    defaultIncludeUnofficial: " + (tu === "true") + ",");
+    }
+    lines.push("  },");
+    lines.push("");
+    lines.push("  standings: {");
+    lines.push("    topEvents:   " + te + ",");
+    lines.push("    maxTotal:    " + effectiveMax + ",");
+    lines.push("    description: " + (desc ? "\"" + esc(desc) + "\"" : "null") + ",");
+    lines.push("  },");
+    lines.push("};");
+    lines.push("");
+
+    return lines.join("\n");
+  }
+
+  // ── Build index.html string ───────────────────────────────────────────────
+
+  function buildIndexHtml(slug, title) {
+    var t = title || "New Series";
+    var s = slug  || "your-series-slug";
+    return [
+      "<!doctype html>",
+      "<html lang=\"en\">",
+      "<head>",
+      "  <script>",
+      "  // Safety cleanup: remove stale Service Workers",
+      "  (function () {",
+      "    if (!('serviceWorker' in navigator)) return;",
+      "    navigator.serviceWorker.getRegistrations()",
+      "      .then(function (regs) { regs.forEach(function (r) { r.unregister(); }); })",
+      "      .catch(function () {});",
+      "  })();",
+      "  <\/script>",
+      "",
+      "  <meta charset=\"utf-8\" />",
+      "  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />",
+      "  <title>DGST " + t + "<\/title>",
+      "",
+      "  <meta property=\"og:title\" content=\"" + t + " – DG Series Tracker\">",
+      "  <meta property=\"og:description\" content=\"Standings, event results, and player stats for the " + t + " disc golf series.\">",
+      "  <meta property=\"og:image\" content=\"https://dgseries.com/_shared/images/logo_share.jpg\">",
+      "  <meta property=\"og:url\" content=\"https://dgseries.com/" + s + "/\">",
+      "  <meta property=\"og:type\" content=\"website\">",
+      "",
+      "  <script src=\"../_shared/version.js\"><\/script>",
+      "  <script>",
+      "    (function () {",
+      "      var v = (window.SITE_BUILD || \"dev\") + \"\";",
+      "      var link = document.createElement(\"link\");",
+      "      link.rel = \"stylesheet\";",
+      "      link.href = \"../_shared/styles.css?v=\" + encodeURIComponent(v);",
+      "      document.head.appendChild(link);",
+      "    })();",
+      "  <\/script>",
+      "<\/head>",
+      "",
+      "<body data-dgst-shell=\"1\">",
+      "  <div id=\"header-slot\"><\/div>",
+      "  <div id=\"view-slot\"><\/div>",
+      "  <div id=\"footer-slot\"><\/div>",
+      "",
+      "  <script>",
+      "    (function () {",
+      "      var v = (window.SITE_BUILD || \"dev\") + \"\";",
+      "",
+      "      function withV(src) {",
+      "        return src + (src.indexOf(\"?\") >= 0 ? \"&\" : \"?\") + \"v=\" + encodeURIComponent(v);",
+      "      }",
+      "",
+      "      function loadScript(src) {",
+      "        return new Promise(function (resolve, reject) {",
+      "          var s = document.createElement(\"script\");",
+      "          s.src = withV(src);",
+      "          s.onload = function () { resolve(); };",
+      "          s.onerror = function () {",
+      "            console.error(\"Failed to load script:\", src);",
+      "            reject(new Error(\"Failed to load script: \" + src));",
+      "          };",
+      "          document.body.appendChild(s);",
+      "        });",
+      "      }",
+      "",
+      "      var scripts = [",
+      "        \"./series.config.js\",",
+      "        \"../_shared/common.js\",",
+      "        \"../_shared/index.js\",",
+      "        \"../_shared/standings.js\",",
+      "        \"../_shared/leaders.js\",",
+      "        \"../_shared/all-events.js\",",
+      "        \"../_shared/player.js\",",
+      "        \"../_shared/router.js\",",
+      "      ];",
+      "",
+      "      scripts.reduce(function (p, src) {",
+      "        return p.then(function () { return loadScript(src); });",
+      "      }, Promise.resolve());",
+      "    })();",
+      "  <\/script>",
+      "<\/body>",
+      "<\/html>",
+      ""
+    ].join("\n");
+  }
+
+  // ── Validate and update preview ──────────────────────────────────────────
+
+  function update() {
+    var slug  = seriesId.value.trim();
+    var title = titleText.value.trim();
+    var valid = true;
+
+    // Slug validation
+    if (!slug) {
+      slugError.textContent = "";
+      valid = false;
+    } else if (!isValidSlug(slug)) {
+      slugError.textContent = "Only lowercase letters, numbers, hyphens. Must start and end with a letter/number.";
+      seriesId.classList.add("invalid");
+      valid = false;
+    } else {
+      slugError.textContent = "";
+      seriesId.classList.remove("invalid");
+    }
+
+    // Title required
+    if (!title) valid = false;
+
+    // Seed URLs required
+    var urls = seedUrls.value.split("\n").map(function(u){ return u.trim(); }).filter(Boolean);
+    if (!urls.length) valid = false;
+
+    // Update file path display
+    configPath.textContent = slug ? slug + "/series.config.js" : "—";
+    indexPath.textContent  = slug ? slug + "/index.html"       : "—";
+
+    // Update preview
+    configPreview.textContent = buildConfig();
+
+    // Enable/disable save buttons
+    btnSave.disabled     = !valid;
+    btnDownload.disabled = !valid;
+  }
+
+  // Initial render
+  update();
+
+  // ── Save to Repo (File System Access API) ─────────────────────────────────
+
+  btnSave.addEventListener("click", function () {
+    if (!hasFsApi) {
+      showStatus("error", "Your browser doesn't support the File System Access API. Use Download ZIP instead.");
+      return;
+    }
+    saveToRepo();
+  });
+
+  async function saveToRepo() {
+    var slug  = seriesId.value.trim();
+    var title = titleText.value.trim();
+    var sub   = subtitle.value.trim();
+    var accent = hexToColor(accentHex.value) || accentHex.value.trim();
+
+    var configContent = buildConfig();
+    var indexContent  = buildIndexHtml(slug, title);
+
+    var dirHandle;
+    try {
+      dirHandle = await window.showDirectoryPicker({
+        id: "dgseries-repo",
+        mode: "readwrite",
+        startIn: "documents"
+      });
+    } catch (err) {
+      if (err.name === "AbortError") return; // user cancelled
+      showStatus("error", "Could not open directory: " + err.message);
+      return;
+    }
+
+    try {
+      // Create series subdirectory
+      var seriesDirHandle = await dirHandle.getDirectoryHandle(slug, { create: true });
+
+      // Write series.config.js
+      await writeFile(seriesDirHandle, "series.config.js", configContent);
+
+      // Write index.html
+      await writeFile(seriesDirHandle, "index.html", indexContent);
+
+      // Read + update series-registry.json
+      var registry = { series: [] };
+      try {
+        var regFileHandle = await dirHandle.getFileHandle("series-registry.json");
+        var regFile = await regFileHandle.getFile();
+        var regText = await regFile.text();
+        registry = JSON.parse(regText);
+        if (!Array.isArray(registry.series)) registry.series = [];
+      } catch (e) {
+        // File may not exist yet — start fresh
+      }
+
+      // Add entry if not already present
+      var exists = registry.series.some(function(s) { return s.slug === slug; });
+      if (!exists) {
+        registry.series.push({
+          slug:     slug,
+          title:    title,
+          subtitle: sub,
+          accent:   accent
+        });
+      }
+
+      await writeFile(dirHandle, "series-registry.json",
+        JSON.stringify(registry, null, 2) + "\n");
+
+      // Show git commands
+      var cmds = [
+        "# Files written to: " + slug + "/",
+        "git add " + slug + "/series.config.js " + slug + "/index.html series-registry.json",
+        "git commit -m \"Add " + slug + " series\"",
+        "git push origin main",
+        "ssh -p 21098 chumuvep@server315.web-hosting.com \"bash ~/deploy-dgseries.sh\""
+      ].join("\n");
+
+      gitCommands.textContent = cmds;
+      gitCard.style.display = "block";
+
+      showStatus("success", "✅ Files written: " + slug + "/series.config.js, " + slug + "/index.html, series-registry.json");
+
+    } catch (err) {
+      showStatus("error", "Write failed: " + err.message);
+    }
+  }
+
+  async function writeFile(dirHandle, filename, content) {
+    var fh = await dirHandle.getFileHandle(filename, { create: true });
+    var writable = await fh.createWritable();
+    await writable.write(content);
+    await writable.close();
+  }
+
+  // ── Download ZIP (fallback) ───────────────────────────────────────────────
+
+  btnDownload.addEventListener("click", function () {
+    downloadFiles();
+  });
+
+  function downloadFiles() {
+    var slug  = seriesId.value.trim();
+    var title = titleText.value.trim();
+
+    var configContent = buildConfig();
+    var indexContent  = buildIndexHtml(slug, title);
+
+    // Download config
+    downloadBlob(slug + "--series.config.js", configContent, "text/javascript");
+
+    // Download index.html with a slight delay to avoid browser blocking
+    setTimeout(function () {
+      downloadBlob(slug + "--index.html", indexContent, "text/html");
+    }, 200);
+
+    showStatus("success",
+      "Downloaded " + slug + "--series.config.js and " + slug + "--index.html.\n" +
+      "Rename them and place in your repo at " + slug + "/ then update series-registry.json manually.");
+  }
+
+  function downloadBlob(filename, content, mimeType) {
+    var blob = new Blob([content], { type: mimeType });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement("a");
+    a.href   = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+  }
+
+  // ── Status banner ─────────────────────────────────────────────────────────
+
+  function showStatus(type, msg) {
+    statusBanner.className = "status-banner show " + type;
+    statusBanner.textContent = msg;
+  }
+
+})();
+</script>
+</body>
+</html>
