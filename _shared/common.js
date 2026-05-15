@@ -720,7 +720,12 @@
         requestAnimationFrame(() => {
           const nav = activePill.closest("nav");
           if (nav) {
-            const offset = activePill.offsetLeft - (nav.clientWidth / 2) + (activePill.offsetWidth / 2);
+            // Use getBoundingClientRect so position is relative to the nav viewport,
+            // not the offsetParent (which may be the header or body).
+            const navRect  = nav.getBoundingClientRect();
+            const pillRect = activePill.getBoundingClientRect();
+            const pillPosInNav = (pillRect.left - navRect.left) + nav.scrollLeft;
+            const offset = pillPosInNav - (nav.clientWidth / 2) + (pillRect.width / 2);
             nav.scrollLeft = Math.max(0, offset);
           }
         });
