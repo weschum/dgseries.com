@@ -147,6 +147,21 @@ a { color: #000; }
   margin: 0 0 6px;
 }
 
+.toggle-notice {
+  font-size: 0.82rem;
+  color: #7a5800;
+  background: #fffbe6;
+  border: 1px solid #f0d060;
+  border-radius: 6px;
+  padding: 6px 12px;
+  margin: 0 0 12px;
+}
+
+.toggle-notice a {
+  color: inherit;
+  font-weight: 600;
+}
+
 /* =========================
    4) Header / Navigation
    ========================= */

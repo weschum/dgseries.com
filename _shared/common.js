@@ -1649,6 +1649,26 @@
     return __dgstResultsPromise;
   };
 
+  // Returns an HTML string (or null) warning that unofficial/live results are
+  // included. Shown on Leaders, Results, and Players views when active.
+  window.Common.buildToggleNotice = function buildToggleNotice() {
+    const scoring = SERIES.scoring || {};
+    const hasLive        = "defaultIncludeLive"       in scoring;
+    const hasUnofficial  = "defaultIncludeUnofficial" in scoring;
+    if (!hasLive && !hasUnofficial) return null;
+
+    const liveOn        = sessionStorage.getItem("dgst_include_live")        === "1";
+    const unofficialOn  = sessionStorage.getItem("dgst_include_unofficial")  === "1";
+
+    const active = [];
+    if (hasLive       && liveOn)       active.push("LIVE");
+    if (hasUnofficial && unofficialOn) active.push("unofficial");
+    if (!active.length) return null;
+
+    const label = active.join(" &amp; ");
+    return `<p class="toggle-notice">Includes ${label} results &mdash; <a href="#standings">adjust on Standings</a></p>`;
+  };
+
   window.Common.clearResultsCache = function clearResultsCache() {
     __dgstResultsValue = null;
     __dgstResultsValueAt = 0;

@@ -126,6 +126,12 @@
 
     const setStatus = (msg) => { els.status.textContent = msg || ""; };
 
+    // Toggle notice — show if unofficial/live results are included
+    if (window.Common.buildToggleNotice) {
+      const notice = window.Common.buildToggleNotice();
+      if (notice) els.status.insertAdjacentHTML("beforebegin", notice);
+    }
+
     const initEvent = getUrlParam("event") || "";
     const initDivision = getUrlParam("division") || "";
     const initQ = getUrlParam("q") || "";

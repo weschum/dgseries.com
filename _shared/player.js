@@ -281,6 +281,12 @@
 
     const setStatus = (msg) => { els.status.textContent = msg || ""; };
 
+    // Toggle notice — show if unofficial/live results are included
+    if (window.Common.buildToggleNotice) {
+      const notice = window.Common.buildToggleNotice();
+      if (notice) els.status.insertAdjacentHTML("beforebegin", notice);
+    }
+
     const POINTS_COL = (window.Common && typeof window.Common.pointsColumnName === "function")
       ? window.Common.pointsColumnName()
       : "Series Pts";
