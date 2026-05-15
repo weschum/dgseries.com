@@ -90,7 +90,7 @@
     return "https://www.pdga.com/player/" + encodeURIComponent(pdgaNum);
   }
 
-  function renderDivisionTable(division, players, POINTS_COL) {
+  function renderDivisionTable(division, players, POINTS_COL, totalPlayers) {
     const label = window.Common?.shortDivisionName
       ? window.Common.shortDivisionName(division)
       : division;
@@ -113,9 +113,13 @@
         </tr>`;
     }).join("");
 
+    const countLabel = totalPlayers != null
+      ? `<span class="leaders-division-count">${totalPlayers} player${totalPlayers !== 1 ? "s" : ""}</span>`
+      : "";
+
     return `
       <div class="leaders-section">
-        <div class="leaders-division-title">${esc(label)}</div>
+        <div class="leaders-division-title">${esc(label)}${countLabel}</div>
         <div class="table-wrap no-scroll">
           <table class="standings-table">
             <thead>
@@ -164,9 +168,14 @@
       Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)))
     );
 
-    const html = divs
-      .map(div => renderDivisionTable(div, computeTopN(rows, div, POINTS_COL, TOP_N_LEADERS), POINTS_COL))
-      .join("");
+    const html = divs.map(div => {
+      const allInDiv = Array.from(new Set(
+        rows.filter(r => String(r.Division || "") === div)
+            .map(r => String(r.PdgaNum || r.Name || "").trim())
+            .filter(Boolean)
+      )).length;
+      return renderDivisionTable(div, computeTopN(rows, div, POINTS_COL, TOP_N_LEADERS), POINTS_COL, allInDiv);
+    }).join("");
 
     wrapEl.innerHTML = html || `<div class="empty">No results to display.</div>`;
     setStatus("");

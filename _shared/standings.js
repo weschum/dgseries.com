@@ -140,11 +140,12 @@
   async function init() {
     // IMPORTANT: query DOM after router injects the template
     const els = {
-      divisionSelect: document.getElementById("divisionSelect"),
-      standingsHead: document.getElementById("standingsHead"),
-      standingsBody: document.getElementById("standingsBody"),
-      status: document.getElementById("status"),
-      standingsHint: document.getElementById("standingsHint"),
+      divisionSelect:  document.getElementById("divisionSelect"),
+      standingsHead:   document.getElementById("standingsHead"),
+      standingsBody:   document.getElementById("standingsBody"),
+      status:          document.getElementById("status"),
+      standingsHint:   document.getElementById("standingsHint"),
+      eventSummary:    document.getElementById("eventSummary"),
     };
 
     if (!els.divisionSelect || !els.standingsHead || !els.standingsBody || !els.status) {
@@ -216,6 +217,43 @@
 
     setStatus("Loading…");
 
+    async function updateEventSummary() {
+      if (!els.eventSummary) return;
+      try {
+        const ctx = await window.Common.getSeriesContext({ onStatus: () => {} });
+        const allEvents = (ctx && ctx.events) ? ctx.events : [];
+
+        const rawLive  = sessionStorage.getItem("dgst_include_live");
+        const rawUnoff = sessionStorage.getItem("dgst_include_unofficial");
+        const inclLive  = rawLive  !== null ? rawLive  === "1" : !!scoringCfg.defaultIncludeLive;
+        const inclUnoff = rawUnoff !== null ? rawUnoff === "1" : !!scoringCfg.defaultIncludeUnofficial;
+
+        const included = allEvents.filter(ev => {
+          if (ev.isCancelled) return false;
+          const s = ev.status || (ev.isCompleted ? "official" : "pending");
+          if (s === "official")                    return true;
+          if (s === "unofficial" && inclUnoff)     return true;
+          if (s === "live"       && inclLive)      return true;
+          return false;
+        });
+
+        const byStatus = { official: 0, unofficial: 0, live: 0 };
+        for (const ev of included) {
+          const s = ev.status || "official";
+          if (s in byStatus) byStatus[s]++;
+        }
+
+        const parts = [`${byStatus.official} official`];
+        if (byStatus.unofficial > 0) parts.push(`${byStatus.unofficial} unofficial`);
+        if (byStatus.live       > 0) parts.push(`${byStatus.live} live`);
+
+        els.eventSummary.textContent =
+          `${included.length} event${included.length !== 1 ? "s" : ""} (${parts.join(", ")})`;
+      } catch {
+        els.eventSummary.textContent = "";
+      }
+    }
+
     async function reloadAndRender() {
       setStatus("Loading…");
       try {
@@ -223,6 +261,7 @@
         rows = p.rows || [];
         rebuildDivisionSelect();
         refresh();
+        updateEventSummary();
       } catch (e) {
         setStatus("Error reloading results.");
       }
@@ -263,12 +302,14 @@
         const p2 = await window.Common.loadAllEvents({ onStatus: () => {} });
         rows = p2.rows || [];
         rebuildDivisionSelect();
+        updateEventSummary();
         refresh();
       } catch (e) {
         // ignore
       }
     });
 
+    updateEventSummary();
     refresh();
   }
 
