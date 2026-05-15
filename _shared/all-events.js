@@ -164,8 +164,9 @@
       return out;
     })();
 
-    const divisions = Array.from(new Set(allRows.map(r => String(r.Division || "").trim()).filter(Boolean)));
-    divisions.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
+    const divisions = window.Common.sortDivisions(
+      Array.from(new Set(allRows.map(r => String(r.Division || "").trim()).filter(Boolean)))
+    );
 
     els.eventSelect.innerHTML =
       `<option value="">All</option>` +

@@ -12,30 +12,7 @@
   const MAX_TOTAL    = Number(SERIES_CFG?.standings?.maxTotal)  || (TOP_N_EVENTS * 100);
   const TOP_N_LEADERS = 3;
 
-  // ─── Division sort ────────────────────────────────────────────────────────
-  // Groups: MP → FP → MA → FA → MJ → FJ → everything else
-  // Within group: "O" suffix sorts first (0), then numeric ascending.
-  // Junior groups (MJ/FJ): sort descending by age so MJ18 comes before MJ15.
-
-  const DIV_GROUP = { MP: 0, FP: 1, MA: 2, FA: 3, MJ: 4, FJ: 5 };
-
-  function divisionSortKey(div) {
-    const d   = String(div || "").trim().toUpperCase();
-    const pre = d.slice(0, 2);
-    const suf = d.slice(2);
-
-    const groupIdx = DIV_GROUP[pre] !== undefined ? DIV_GROUP[pre] : 99;
-    const numVal   = (suf === "O" || suf === "") ? 0 : (parseInt(suf, 10) || 999);
-
-    // Juniors: larger age number first → invert so MJ18 < MJ15 in sort key
-    const order = (pre === "MJ" || pre === "FJ") ? (1000 - numVal) : numVal;
-
-    return groupIdx * 10000 + order;
-  }
-
-  function sortDivisions(divs) {
-    return divs.slice().sort((a, b) => divisionSortKey(a) - divisionSortKey(b));
-  }
+  // Division sort delegated to window.Common.sortDivisions (canonical PDGA order)
 
   // ─── Standings computation (mirrors standings.js logic) ───────────────────
 
@@ -183,7 +160,7 @@
       return;
     }
 
-    const divs = sortDivisions(
+    const divs = window.Common.sortDivisions(
       Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)))
     );
 

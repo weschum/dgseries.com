@@ -586,6 +586,39 @@
   window.Common.shortEventLabelFromPdgaName = shortLabelFromPdgaName;
   window.Common.shortDivisionName = shortDivisionName;
 
+  // Canonical PDGA division order.
+  // Divisions not in this list sort to the end alphabetically.
+  const DIVISION_ORDER = [
+    // Pro Men
+    "MPO","MP40","MP50","MP55","MP60","MP65","MP70","MP75","MP80",
+    // Pro Women
+    "FPO","FP40","FP50","FP55","FP60","FP65","FP70","FP75","FP80",
+    // Amateur Men
+    "MA1","MA2","MA3","MA4","MA40","MA50","MA55","MA60","MA65","MA70","MA75","MA80",
+    // Amateur Women
+    "FA1","FA2","FA3","FA4","FA40","FA50","FA55","FA60","FA65","FA70","FA75","FA80",
+    // Junior Men (oldest first)
+    "MJ18","MJ15","MJ12","MJ10","MJ08","MJ06",
+    // Junior Women (oldest first)
+    "FJ18","FJ15","FJ12","FJ10","FJ08","FJ06",
+    // College / Scholastic
+    "MC1","FC1","MC2","FC2","MC3","FC3","MSV","FSV","MSJV","FSJV",
+  ];
+
+  const _divOrderMap = new Map(DIVISION_ORDER.map((d, i) => [d.toUpperCase(), i]));
+
+  window.Common.sortDivisions = function sortDivisions(divs) {
+    return divs.slice().sort((a, b) => {
+      const ai = _divOrderMap.get(String(a).toUpperCase());
+      const bi = _divOrderMap.get(String(b).toUpperCase());
+      // Known divisions sort by index; unknown ones fall to end, sorted alpha
+      if (ai !== undefined && bi !== undefined) return ai - bi;
+      if (ai !== undefined) return -1;
+      if (bi !== undefined) return 1;
+      return String(a).localeCompare(String(b));
+    });
+  };
+
   window.Common.formatShortDateRange = function formatShortDateRange(startMs, endMs) {
     function fmt(ms) {
       if (!Number.isFinite(ms)) return null;

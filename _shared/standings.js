@@ -233,8 +233,9 @@
 
     function rebuildDivisionSelect(preferCurrent) {
       const current = preferCurrent ?? els.divisionSelect.value;
-      const divs = Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)));
-      divs.sort((a, b) => window.Common.shortDivisionName(a).localeCompare(window.Common.shortDivisionName(b)));
+      const divs = window.Common.sortDivisions(
+        Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)))
+      );
       els.divisionSelect.innerHTML = divs
         .map(d => `<option value="${escapeHtml(d)}">${escapeHtml(window.Common.shortDivisionName(d))}</option>`)
         .join("");
