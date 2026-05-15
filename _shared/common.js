@@ -715,21 +715,45 @@
         if (key === activeKey) { a.classList.add("is-active", "active"); activePill = a; }
       });
 
-      // Scroll the active pill to center of the nav row (mobile scroll hint).
-      // Double-rAF: first rAF fires before paint (layout may not be committed yet,
-      // clientWidth can be 0); second rAF fires after the first paint when
-      // getBoundingClientRect values are reliable.
-      if (activePill) {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          const nav = activePill.closest("nav");
-          if (!nav || nav.clientWidth === 0) return; // not laid out — skip
-          const navRect  = nav.getBoundingClientRect();
-          const pillRect = activePill.getBoundingClientRect();
-          const pillPosInNav = (pillRect.left - navRect.left) + nav.scrollLeft;
-          const offset = pillPosInNav - (nav.clientWidth / 2) + (pillRect.width / 2);
-          nav.scrollLeft = Math.max(0, offset);
-        }));
+      // ── Hamburger menu ──────────────────────────────────────────────────────
+      const hamburger = slot.querySelector("#navHamburger");
+      const siteNav   = slot.querySelector("#siteNav");
+      const pageLabel = slot.querySelector("#navCurrentPage");
+
+      // Show current page name in the button
+      if (pageLabel && activePill) {
+        pageLabel.textContent = activePill.textContent.trim();
       }
+
+      if (hamburger && siteNav) {
+        hamburger.addEventListener("click", e => {
+          e.stopPropagation();
+          const open = siteNav.classList.toggle("is-open");
+          hamburger.setAttribute("aria-expanded", String(open));
+        });
+
+        // Close menu when a pill is tapped (navigation rebuilds header anyway)
+        siteNav.querySelectorAll(".nav-pill").forEach(pill => {
+          pill.addEventListener("click", () => {
+            siteNav.classList.remove("is-open");
+            hamburger.setAttribute("aria-expanded", "false");
+          });
+        });
+      }
+
+      // Outside-click closes menu; store ref so we can remove on next header load
+      if (window.__navOutsideClick) {
+        document.removeEventListener("click", window.__navOutsideClick);
+      }
+      window.__navOutsideClick = e => {
+        const openNav = document.querySelector("#siteNav.is-open");
+        if (!openNav) return;
+        const btn = document.querySelector("#navHamburger");
+        if (btn && btn.contains(e.target)) return; // handled by btn's own listener
+        openNav.classList.remove("is-open");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      };
+      document.addEventListener("click", window.__navOutsideClick);
 
       const branding = SERIES.branding || {};
       const titleText = typeof branding.titleText === "string" ? branding.titleText.trim() : "";

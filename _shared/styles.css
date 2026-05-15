@@ -153,6 +153,7 @@ a { color: #000; }
 .site-header {
   background: var(--card);
   border-bottom: 1px solid var(--border);
+  position: relative; /* anchor for mobile dropdown */
 }
 
 /* Use GRID to prevent the title from ever wrapping under the logo */
@@ -245,41 +246,69 @@ a { color: #000; }
 .nav-pill:active { transform: translateY(0px); opacity: 0.9; }
 .nav-pill.is-active { background: var(--accent); }
 
-/* -------------------------
-   Narrow / Mobile behavior
-   ------------------------- */
+/* ── Hamburger button (hidden on desktop) ── */
+.nav-hamburger {
+  display: none; /* shown only on mobile via media query below */
+  grid-area: nav;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--nav-radius);
+  border: var(--nav-border-width) solid var(--nav-border-color);
+  background: #e5e7eb;
+  color: #000;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: var(--nav-font-weight);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.08s ease;
+}
+
+.nav-hamburger:active { opacity: 0.75; }
+
+.nav-hamburger-icon { font-size: 16px; line-height: 1; }
+
+/* ── Mobile dropdown ── */
 @media (max-width: 700px) {
+  /* Single-row header: logo | title | ☰ button */
   .site-header-inner {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas:
-      "brand title"
-      "nav   nav";
-    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "brand title nav";
+    align-items: center;
   }
 
-  /* Horizontally scrollable pill row — pills stay natural width, row scrolls */
+  /* Pills hidden by default — shown as dropdown when .is-open */
   .nav {
-    display: flex;
-    flex-wrap: nowrap;
-    width: 100%;
+    display: none;
+    flex-direction: column;
     gap: 6px;
-    overflow-x: auto;
-    overflow-y: clip;                /* clip instead of hidden — lets padding show without scroll container */
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding: 2px 0;                  /* top + bottom — prevents border/shadow clipping on both edges */
-    /* Right-edge fade: visual cue that the row is scrollable */
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
-    mask-image:         linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+    padding: 10px 14px;
+    z-index: 300;
   }
 
-  .nav::-webkit-scrollbar { display: none; }
+  .nav.is-open { display: flex; }
 
-  .nav-pill {
-    flex-shrink: 0;
-    font-size: 14px;
+  /* Dropdown pills: full-width rows, left-aligned, taller touch target */
+  .nav .nav-pill {
+    width: 100%;
+    height: 44px;
+    justify-content: flex-start;
+    font-size: 15px;
   }
+
+  /* Hamburger button visible on mobile */
+  .nav-hamburger { display: inline-flex; }
 }
 
 /* Desktop: bigger header title without a taller header */
@@ -846,7 +875,7 @@ select:focus-visible {
   }
 
   .control { width: 100%; }
-  button:not(.btn-toggle) { width: 100%; }
+  button:not(.btn-toggle):not(.nav-hamburger) { width: 100%; }
 
   /* Table sizing normalization at smallest breakpoint */
   :root {

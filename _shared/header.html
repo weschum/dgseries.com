@@ -1,7 +1,7 @@
 <!-- /dgseries.com/_shared/header.html -->
 <header class="site-header">
   <div class="site-header-inner">
-    <a class="site-brand" href="/index.html" aria-label=""DGST home">
+    <a class="site-brand" href="/index.html" aria-label="DGST home">
       <picture>
         <source srcset="/_shared/images/logo_dgst.svg" type="image/svg+xml">
         <img
@@ -16,12 +16,20 @@
       <span id="seriesTitleText" class="series-title-text"></span>
     </div>
 
-    <nav class="nav" aria-label="Site navigation">
-      <a class="nav-pill" href="#home" data-nav="home">Home</a>
-      <a class="nav-pill" href="#leaders" data-nav="leaders">Leaders</a>
-      <a class="nav-pill" href="#standings" data-nav="standings">Standings</a>
+    <!-- Desktop: pill row (grid-area: nav) -->
+    <nav class="nav" id="siteNav" aria-label="Site navigation">
+      <a class="nav-pill" href="#home"       data-nav="home">Home</a>
+      <a class="nav-pill" href="#leaders"    data-nav="leaders">Leaders</a>
+      <a class="nav-pill" href="#standings"  data-nav="standings">Standings</a>
       <a class="nav-pill" href="#all-events" data-nav="all-events">Results</a>
-      <a class="nav-pill" href="#player" data-nav="player">Players</a>
+      <a class="nav-pill" href="#player"     data-nav="player">Players</a>
     </nav>
+
+    <!-- Mobile: hamburger trigger (grid-area: nav, overlaps above on mobile) -->
+    <button class="nav-hamburger" id="navHamburger"
+            aria-label="Open navigation" aria-expanded="false" aria-controls="siteNav">
+      <span class="nav-hamburger-icon" aria-hidden="true">☰</span>
+      <span class="nav-hamburger-label" id="navCurrentPage"></span>
+    </button>
   </div>
 </header>
