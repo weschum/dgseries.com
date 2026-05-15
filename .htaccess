@@ -12,9 +12,15 @@
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 
-  # 2) Shared runtime assets should revalidate so deploys take effect without hard refresh
+  # 2a) version.js is the cache-bust key — must never be cached by any client
+  <Files "version.js">
+    Header always set Cache-Control "no-store"
+    Header always set Pragma "no-cache"
+  </Files>
+
+  # 2b) Other shared runtime assets revalidate using the ?v= stamp
   <LocationMatch "^/_shared/.*\.(js|css)$">
-    Header set Cache-Control "no-cache, must-revalidate"
+    Header always set Cache-Control "no-cache, must-revalidate"
   </LocationMatch>
 
   # 3) The PDGA proxy should never be cached by the browser
