@@ -83,17 +83,26 @@
       return a.name.localeCompare(b.name);
     });
 
+    // First pass: assign numeric rank (handles gaps for ties)
     let lastTotal = null;
     let shownRank = 0;
-
-    return players.map((p, idx) => {
+    const ranked = players.map((p, idx) => {
       const rank = idx + 1;
       if (lastTotal === null || p.total !== lastTotal) {
         shownRank = rank;
         lastTotal = p.total;
-        return { ...p, rankLabel: String(shownRank) };
       }
-      return { ...p, rankLabel: "T" + shownRank };
+      return { ...p, _rank: shownRank };
+    });
+
+    // Second pass: prefix T on ALL players sharing a rank
+    const rankCounts = new Map();
+    for (const p of ranked) rankCounts.set(p._rank, (rankCounts.get(p._rank) || 0) + 1);
+
+    return ranked.map(p => {
+      const label = rankCounts.get(p._rank) > 1 ? "T" + p._rank : String(p._rank);
+      const { _rank, ...rest } = p;
+      return { ...rest, rankLabel: label };
     });
   }
 
