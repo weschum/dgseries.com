@@ -75,9 +75,98 @@
   // Developer toggle: ?force=1 clears DGST session caches and reloads fresh from PDGA
   let FORCE_REFRESH_ACTIVE = String(getUrlParam("force") || "") === "1";
 
-  const SERIES = (window.SERIES_CONFIG && typeof window.SERIES_CONFIG === "object")
-    ? window.SERIES_CONFIG
-    : {};
+  // ─── Config normalization + validation ───────────────────────────────────
+  // Applies defaults for every optional field and warns about missing required
+  // fields. After this runs, SERIES is always a fully-shaped object — no more
+  // scattered `|| {}` fallbacks needed throughout the rest of common.js.
+
+  function normalizeConfig(raw) {
+    const cfg = (raw && typeof raw === "object") ? raw : {};
+
+    // ── Required fields ──────────────────────────────────────────────────
+    const identity  = cfg.identity  || {};
+    const branding  = cfg.branding  || {};
+    const pdgaRaw   = cfg.pdga      || {};
+
+    const seriesId  = typeof identity.seriesId  === "string" ? identity.seriesId.trim()  : "";
+    const titleText = typeof branding.titleText === "string" ? branding.titleText.trim() : "";
+
+    let seedUrls = [];
+    if (Array.isArray(pdgaRaw.seedUrls) && pdgaRaw.seedUrls.length) {
+      seedUrls = pdgaRaw.seedUrls.map(s => String(s || "").trim()).filter(Boolean);
+    } else if (typeof pdgaRaw.seedUrl === "string" && pdgaRaw.seedUrl.trim()) {
+      seedUrls = [pdgaRaw.seedUrl.trim()]; // back-compat single seed
+    }
+
+    if (!seriesId)       console.warn("[DGST] series.config.js: identity.seriesId is required (use the folder slug, e.g. 'sows-25-26')");
+    else if (!/^[a-z0-9-]+$/.test(seriesId)) console.warn(`[DGST] series.config.js: identity.seriesId '${seriesId}' should be lowercase letters, numbers, and hyphens only`);
+    if (!titleText)      console.warn("[DGST] series.config.js: branding.titleText is required (series display name)");
+    if (!seedUrls.length) console.warn("[DGST] series.config.js: pdga.seedUrls is required — provide at least one PDGA tour search URL");
+
+    // ── pdga ─────────────────────────────────────────────────────────────
+    const num = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
+
+    const pdga = {
+      seedUrls,
+      throttleMs:      num(pdgaRaw.throttleMs,      800),
+      forceThrottleMs: num(pdgaRaw.forceThrottleMs, 3000),
+      newFetchCap:     num(pdgaRaw.newFetchCap,      6),
+    };
+
+    // ── naming ───────────────────────────────────────────────────────────
+    const namingRaw = cfg.naming || {};
+    const naming = {
+      shortLabelMaxWords:  num(namingRaw.shortLabelMaxWords, 5),
+      shortLabelStopWords: Array.isArray(namingRaw.shortLabelStopWords)
+        ? namingRaw.shortLabelStopWords.map(s => String(s).toLowerCase())
+        : [],
+    };
+
+    // ── scoring ──────────────────────────────────────────────────────────
+    const scoringRaw = cfg.scoring || {};
+    const pointsRaw  = scoringRaw.points || {};
+    const scoring = {
+      pointsColumnName: (typeof scoringRaw.pointsColumnName === "string" && scoringRaw.pointsColumnName.trim())
+        ? scoringRaw.pointsColumnName.trim()
+        : "Series Pts",
+      points: {
+        type: String(pointsRaw.type || "linear"),
+        base: num(pointsRaw.base, 101),
+      },
+    };
+    // Toggle keys: preserve absence (no toggle shown) vs explicit false (toggle shown, default off)
+    if ("defaultIncludeLive"       in scoringRaw) scoring.defaultIncludeLive       = !!scoringRaw.defaultIncludeLive;
+    if ("defaultIncludeUnofficial" in scoringRaw) scoring.defaultIncludeUnofficial = !!scoringRaw.defaultIncludeUnofficial;
+
+    // ── standings ────────────────────────────────────────────────────────
+    const standingsRaw = cfg.standings || {};
+    const topEvents = num(standingsRaw.topEvents, 4);
+    if (topEvents < 1) console.warn("[DGST] series.config.js: standings.topEvents must be at least 1");
+    const standings = {
+      topEvents,
+      maxTotal:     num(standingsRaw.maxTotal, topEvents * 100),
+      description:  typeof standingsRaw.description === "string" ? standingsRaw.description : null,
+    };
+
+    // ── theme ────────────────────────────────────────────────────────────
+    const themeRaw = cfg.theme || {};
+    const navRaw   = themeRaw.nav || {};
+    const theme = {
+      accent: typeof themeRaw.accent === "string" ? themeRaw.accent : null,
+      nav: {
+        borderColor:  typeof navRaw.borderColor === "string"               ? navRaw.borderColor  : null,
+        borderWidthPx: num(navRaw.borderWidthPx, null),
+        radiusPx:      num(navRaw.radiusPx,      null),
+        fontWeight:    num(navRaw.fontWeight,     null),
+      },
+    };
+
+    return { identity: { seriesId }, branding: { titleText }, theme, pdga, naming, scoring, standings };
+  }
+
+  const SERIES = normalizeConfig(window.SERIES_CONFIG);
+  // Write normalized config back so series views reading window.SERIES_CONFIG get clean data too
+  window.SERIES_CONFIG = SERIES;
 
   // Stable series identifier (used for storage/cache namespacing).
   // Preferred: SERIES.identity.seriesId
@@ -97,53 +186,27 @@
   })();
 
   function applySeriesTheme() {
-    const root = document.documentElement;
+    const root  = document.documentElement;
     const theme = SERIES.theme || {};
-    const nav = theme.nav || {};
+    const nav   = theme.nav   || {};
 
-    if (theme.accent) {
-      root.style.setProperty("--accent", String(theme.accent));
-      root.style.setProperty("--focus", String(theme.accent));
-    }
-
-    if (nav.borderColor) root.style.setProperty("--nav-border-color", String(nav.borderColor));
-    if (Number.isFinite(Number(nav.borderWidthPx))) root.style.setProperty("--nav-border-width", `${Number(nav.borderWidthPx)}px`);
-    if (Number.isFinite(Number(nav.radiusPx))) root.style.setProperty("--nav-radius", `${Number(nav.radiusPx)}px`);
-    if (Number.isFinite(Number(nav.fontWeight))) root.style.setProperty("--nav-font-weight", String(nav.fontWeight));
+    // After normalizeConfig, unset values are null — only apply if explicitly configured
+    if (theme.accent      !== null) { root.style.setProperty("--accent", String(theme.accent)); root.style.setProperty("--focus", String(theme.accent)); }
+    if (nav.borderColor   !== null) root.style.setProperty("--nav-border-color",  String(nav.borderColor));
+    if (nav.borderWidthPx !== null) root.style.setProperty("--nav-border-width",  `${nav.borderWidthPx}px`);
+    if (nav.radiusPx      !== null) root.style.setProperty("--nav-radius",        `${nav.radiusPx}px`);
+    if (nav.fontWeight    !== null) root.style.setProperty("--nav-font-weight",   String(nav.fontWeight));
   }
 
   applySeriesTheme();
 
-  const defaultSeed =
-    "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31";
-
-  const seedUrls = (() => {
-    const pdga = SERIES.pdga || {};
-
-    // New: multi-seed discovery
-    if (Array.isArray(pdga.seedUrls) && pdga.seedUrls.length) {
-      const cleaned = pdga.seedUrls
-        .map(s => String(s || "").trim())
-        .filter(Boolean);
-      if (cleaned.length) return cleaned;
-    }
-
-    // Back-compat: single seed
-    if (typeof pdga.seedUrl === "string" && pdga.seedUrl.trim()) {
-      return [pdga.seedUrl.trim()];
-    }
-
-    return [defaultSeed];
-  })();
+  // seedUrls already normalized and validated in normalizeConfig
+  const seedUrls = SERIES.pdga.seedUrls;
 
   const DATA = {
     PDGA: {
-      // Back-compat: keep a single "primary" seed URL.
-      SEED_URL: seedUrls[0],
-      // New: all seed URLs
-      SEED_URLS: seedUrls.slice(),
-      // Shared proxy lives at the platform root (one proxy for all series).
-      // Example: /dgst/pdga-proxy.php
+      SEED_URL:  seedUrls[0],        // back-compat: primary seed
+      SEED_URLS: seedUrls.slice(),   // all seeds
       PROXY_PREFIX: PLATFORM_BASE_PATH + "/pdga-proxy.php?url=",
     },
   };

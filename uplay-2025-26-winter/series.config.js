@@ -1,60 +1,45 @@
-// /dgst/uplay-2025-26-winter/series.config.js
-// Optional per-series configuration.
-// Pages will work without this file, but if present it can override branding + theme + PDGA discovery + rules.
-(() => {
-  "use strict";
+// UPlay 2025-26 Winter Series configuration
+// Defaults documented in _shared/series.config.template.js
+window.SERIES_CONFIG = {
+  identity: {
+    seriesId: "uplay-2025-26-winter",
+  },
 
-  window.SERIES_CONFIG = window.SERIES_CONFIG || {
-    identity: {
-      // Stable identifier used for namespacing caches/storage.
-      // Recommend matching the series folder slug.
-      seriesId: "uplay-2025-26-winter",
-    },
+  branding: {
+    titleText: "UPlay 2025-26 Winter Series",
+  },
 
-    branding: {
-      // Header title (series-specific)
-      titleText: "UPlay 2025-26 Winter Series",
+  theme: {
+    accent: "#7ed2c6",
+    nav: {
+      borderColor:   "#2b5194",
+      borderWidthPx: 1,
+      radiusPx:      8,
+      fontWeight:    700,
     },
+  },
 
-    theme: {
-      // Accent used for active nav + focus ring.
-      accent: "#7ed2c6",
-      // Nav pill styling (optional)
-      nav: {
-        borderColor: "#2b5194",
-        borderWidthPx: 1,
-        radiusPx: 8,
-        fontWeight: 700,
-      },
-    },
+  pdga: {
+    seedUrls: [
+      "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
+    ],
+    throttleMs:      300,
+    forceThrottleMs: 700,
+  },
 
-    pdga: {
-      // Prefer seedUrls for multi-seed discovery. common.js should treat seedUrl as a single-item seedUrls if seedUrls is not provided.
-      seedUrls: [
-        "https://www.pdga.com/tour/search?OfficialName=&td=35187&date_filter%5Bmin%5D%5Bdate%5D=2025-09-01&date_filter%5Bmax%5D%5Bdate%5D=2026-03-31",
-      ],
-      throttleMs: 300,
-      forceThrottleMs: 700,
-    },
+  naming: {
+    shortLabelMaxWords:  2,
+    shortLabelStopWords: ["uplay", "2025-26", "2025-2026"],
+  },
 
-    // Naming rules (series-specific). common.js must not hard-code series names.
-    naming: {
-      // optional tuning; you can omit entirely
-      shortLabelMaxWords: 2,
-      shortLabelStopWords: ["uplay", "2025-26", "2025-2026"],
-    },
+  scoring: {
+    pointsColumnName: "Series Pts",
+    points: { type: "linear", base: 101 },
+  },
 
-    scoring: {
-      // Label for the points column across the site.
-      pointsColumnName: "Series Pts",
-      // Default points rule: 101 - finishing position
-      points: { type: "linear", base: 101 },
-    },
-
-    standings: {
-      topEvents: 4,
-      maxTotal: 400,
-      description: "Points Total = Top Four Event Results",
-    },
-  };
-})();
+  standings: {
+    topEvents:   4,
+    maxTotal:    400,
+    description: "Points Total = Top Four Event Results",
+  },
+};
