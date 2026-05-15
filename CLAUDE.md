@@ -124,11 +124,60 @@ window.SERIES_CONFIG = {
 ```
 
 ## Version bumping
-`_shared/version.js` holds `window.SITE_BUILD`. Bump it on every release — it busts all client caches. Current value: `2026-05-15-01`.
+`_shared/version.js` holds `window.SITE_BUILD`. Bump it on every release — it busts all client caches.
+Current value: `2026-05-15-02`.
+- `version.js` itself is served with `Cache-Control: no-store` via `.htaccess` so it's always fetched fresh
+- All other `_shared/*.js` and `*.css` assets use `no-cache, must-revalidate` — they revalidate using the `?v=` stamp
+- **Lesson learned:** iOS Safari respects `no-store` but can silently ignore `no-cache` for same-session navigations. Always use `no-store` on the cache-key file itself.
 
-## Known issues / next session
-- `uplay-2025-26-winter` series hasn't been force-loaded to populate its DB events yet
-- Consolidate the four `escapeHtml` duplicates across view files (use `window.Common.escapeHtml` everywhere)
-- Generator: consider adding a "subtitle" field auto-generated from date range, and a preview of the home-page card
-- Index page: consider fetching series home view data (event count, last updated) to show in cards
-- Search/filter on index page once series count grows
+## Mobile nav
+- Desktop: horizontal pill row in the header (right column)
+- Mobile (≤700px): two-row header — row 1 `[logo | series title]`, row 2 `[☰ Current Page]` full-width button
+- Tapping the button opens a full-width dropdown (position:absolute, z-index 300) with all nav items as 44px touch-target rows
+- Active page is accent-colored in the dropdown; tapping any item closes the menu and navigates
+- Outside-click handler stored on `window.__navOutsideClick` — cleaned up and replaced on each `loadHeader()` call
+
+## What was built this session (2026-05-15)
+### Series generator + registry
+- **`/tools/new-series.html`** — self-contained generator form; uses File System Access API (Chrome) to write files directly into the local repo; fallback download buttons for other browsers
+  - Writes `{slug}/series.config.js`, `{slug}/index.html`, updates `series-registry.json`
+  - Shows git commit + deploy commands after saving
+- **`series-registry.json`** — root-level manifest `{ "series": [{ slug, title, subtitle, accent }] }`
+- **`index.html`** — now fetches `series-registry.json` at runtime; renders accent-stripe cards dynamically; hardcoded fallback if fetch fails
+- `test-series` intentionally excluded from registry (dev-only, accessed by direct URL)
+
+### Config normalization
+- `normalizeConfig()` in `common.js` validates required fields, applies typed defaults, warns on bad values
+- All series configs simplified to plain `window.SERIES_CONFIG = { ... }` — no IIFE wrapper needed
+- `_shared/series.config.template.js` — master reference with every field documented
+
+### Views added
+- **Leaders view** — top-N players per division; between Home and Standings in nav
+- Division sort uses canonical `DIVISION_ORDER` array covering all PDGA divisions (MP/FP/MA/FA/MJ/FJ age pools + college)
+
+### Home view improvements
+- Upcoming events shown above Past Events
+- Short date format (3/9/26 – 5/11/26) in a narrow column
+- Status badges: Unoff. (yellow), LIVE (green), Regis. (blue), Pend. (grey) — Official events get no badge
+- Completed renamed to "Past Events"
+
+### Standings view improvements
+- Event count summary: "3 events (2 official, 1 unofficial)"
+- Toggle buttons (Live / Unofficial) only appear if series config defines the keys
+- Toggle bug fixed: `!!"0"` is truthy in JS — fixed to `raw === "1"` pattern
+- Tied rank display: all tied players show T prefix (T1, T1, 3 — not just second-onward)
+
+## Known issues / polish for next session
+- **Mobile nav polish** — hamburger + dropdown is functional but rough around the edges; could use visual refinement (transitions, chevron animation, active state on button itself)
+- **`uplay-2025-26-winter`** series hasn't been force-loaded to populate its DB events yet — visit `dgseries.com/uplay-2025-26-winter/?force=1` to seed it
+- **Consolidate `escapeHtml`** — four duplicates across view JS files; should use `window.Common.escapeHtml` everywhere
+- **Generator UX polish**
+  - Preview of the home-page card as you fill in the form
+  - Subtitle field (could auto-suggest from date range)
+  - Validation feedback before Save button is enabled
+- **Index / home page**
+  - Show live event count or "last updated" on each series card (requires a lightweight API call or pre-baked data)
+  - Search/filter once series count grows past ~10
+- **`test-series` seeds** — currently using Oregon May 10-17 + TD 126404; good for testing unofficial toggle but limited player data; consider a seed with more historical official events for richer QA
+- **Performance** — cold start on a new series still requires multiple sequential PDGA fetches; consider a server-side pre-seeder script that could be run once to bulk-load a new series DB
+- **Long-term: TD onboarding** — the generator is the first step; next would be a lightweight admin view to manage a series (edit config, manually exclude an event, override a result)
