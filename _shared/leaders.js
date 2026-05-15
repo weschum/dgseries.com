@@ -1,0 +1,206 @@
+// /dgseries.com/_shared/leaders.js
+(() => {
+  "use strict";
+
+  window.DGSTViews = window.DGSTViews || {};
+
+  const SERIES_CFG = (window.Common && window.Common.SERIES_CONFIG)
+    ? window.Common.SERIES_CONFIG
+    : (window.SERIES_CONFIG || {});
+
+  const TOP_N_EVENTS = Number(SERIES_CFG?.standings?.topEvents) || 4;
+  const MAX_TOTAL    = Number(SERIES_CFG?.standings?.maxTotal)  || (TOP_N_EVENTS * 100);
+  const TOP_N_LEADERS = 3;
+
+  // ─── Division sort ────────────────────────────────────────────────────────
+  // Groups: MP → FP → MA → FA → MJ → FJ → everything else
+  // Within group: "O" suffix sorts first (0), then numeric ascending.
+  // Junior groups (MJ/FJ): sort descending by age so MJ18 comes before MJ15.
+
+  const DIV_GROUP = { MP: 0, FP: 1, MA: 2, FA: 3, MJ: 4, FJ: 5 };
+
+  function divisionSortKey(div) {
+    const d   = String(div || "").trim().toUpperCase();
+    const pre = d.slice(0, 2);
+    const suf = d.slice(2);
+
+    const groupIdx = DIV_GROUP[pre] !== undefined ? DIV_GROUP[pre] : 99;
+    const numVal   = (suf === "O" || suf === "") ? 0 : (parseInt(suf, 10) || 999);
+
+    // Juniors: larger age number first → invert so MJ18 < MJ15 in sort key
+    const order = (pre === "MJ" || pre === "FJ") ? (1000 - numVal) : numVal;
+
+    return groupIdx * 10000 + order;
+  }
+
+  function sortDivisions(divs) {
+    return divs.slice().sort((a, b) => divisionSortKey(a) - divisionSortKey(b));
+  }
+
+  // ─── Standings computation (mirrors standings.js logic) ───────────────────
+
+  function numberOrNull(x) {
+    const n = Number(String(x || "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function computeTopN(rows, division, POINTS_COL, topN) {
+    const byPlayer = new Map();
+
+    for (const r of rows) {
+      if (String(r.Division || "") !== division) continue;
+
+      const key  = String(r.PdgaNum || r.Name || "").trim();
+      const name = String(r.Name || "").trim();
+      const pdga = String(r.PdgaNum || "").trim();
+      const pts  = numberOrNull(r[POINTS_COL]);
+
+      if (!key) continue;
+
+      if (!byPlayer.has(key)) byPlayer.set(key, { name, pdga, events: [] });
+      if (pts !== null) byPlayer.get(key).events.push(pts);
+    }
+
+    const players = [];
+    for (const [, p] of byPlayer) {
+      const sorted   = p.events.slice().sort((a, b) => b - a);
+      const top      = sorted.slice(0, TOP_N_EVENTS);
+      const totalRaw = top.reduce((s, v) => s + v, 0);
+      const total    = Math.min(totalRaw, MAX_TOTAL);
+      players.push({ name: p.name, pdga: p.pdga, total });
+    }
+
+    players.sort((a, b) => {
+      if (b.total !== a.total) return b.total - a.total;
+      return a.name.localeCompare(b.name);
+    });
+
+    // Assign ranks then filter to top N
+    let lastTotal = null;
+    let shownRank = 0;
+    const ranked = players.map((p, idx) => {
+      if (lastTotal === null || p.total !== lastTotal) {
+        shownRank = idx + 1;
+        lastTotal = p.total;
+      }
+      return { ...p, _rank: shownRank };
+    });
+
+    // Prefix T on all players sharing a rank
+    const rankCounts = new Map();
+    for (const p of ranked) rankCounts.set(p._rank, (rankCounts.get(p._rank) || 0) + 1);
+
+    return ranked
+      .filter(p => p._rank <= topN)
+      .map(p => ({
+        name:      p.name,
+        pdga:      p.pdga,
+        total:     p.total,
+        rankLabel: rankCounts.get(p._rank) > 1 ? "T" + p._rank : String(p._rank),
+      }));
+  }
+
+  // ─── Rendering ────────────────────────────────────────────────────────────
+
+  function esc(s) {
+    return window.Common?.escapeHtml
+      ? window.Common.escapeHtml(String(s ?? ""))
+      : String(s ?? "").replace(/[&<>"']/g, c =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function buildPdgaProfileHref(pdgaNum) {
+    return "https://www.pdga.com/player/" + encodeURIComponent(pdgaNum);
+  }
+
+  function renderDivisionTable(division, players, POINTS_COL) {
+    const label = window.Common?.shortDivisionName
+      ? window.Common.shortDivisionName(division)
+      : division;
+
+    if (!players.length) return "";
+
+    const rows = players.map(p => {
+      const nameCell = p.pdga
+        ? `<a href="${esc(buildPdgaProfileHref(p.pdga))}" target="_blank" rel="noopener noreferrer">${esc(p.name)}</a>`
+        : esc(p.name);
+      const pdgaCell = p.pdga
+        ? `<a href="${esc(buildPdgaProfileHref(p.pdga))}" target="_blank" rel="noopener noreferrer">${esc(p.pdga)}</a>`
+        : "";
+      return `
+        <tr>
+          <td data-col="Name">${nameCell}</td>
+          <td data-col="PDGA#">${pdgaCell}</td>
+          <td data-col="Rank">${esc(p.rankLabel)}</td>
+          <td data-col="${esc(POINTS_COL)}">${esc(String(p.total))}</td>
+        </tr>`;
+    }).join("");
+
+    return `
+      <div class="leaders-section">
+        <div class="leaders-division-title">${esc(label)}</div>
+        <div class="table-wrap no-scroll">
+          <table class="standings-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>PDGA#</th>
+                <th>Rank</th>
+                <th>${esc(POINTS_COL)}</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  // ─── Init ─────────────────────────────────────────────────────────────────
+
+  async function init() {
+    const statusEl  = document.getElementById("status");
+    const wrapEl    = document.getElementById("leadersWrap");
+
+    if (!statusEl || !wrapEl) {
+      console.error("Leaders template missing required elements.");
+      return;
+    }
+
+    const setStatus = msg => { statusEl.textContent = msg || ""; };
+
+    const POINTS_COL = (window.Common && typeof window.Common.pointsColumnName === "function")
+      ? window.Common.pointsColumnName()
+      : "Series Pts";
+
+    setStatus("Loading…");
+
+    const payload = await window.Common.loadAllEvents({ onStatus: setStatus });
+    const rows    = payload.rows || [];
+
+    if (!rows.length) {
+      setStatus("No results yet.");
+      wrapEl.innerHTML = `<div class="empty">No results to display.</div>`;
+      return;
+    }
+
+    const divs = sortDivisions(
+      Array.from(new Set(rows.map(r => String(r.Division || "").trim()).filter(Boolean)))
+    );
+
+    const html = divs
+      .map(div => renderDivisionTable(div, computeTopN(rows, div, POINTS_COL, TOP_N_LEADERS), POINTS_COL))
+      .join("");
+
+    wrapEl.innerHTML = html || `<div class="empty">No results to display.</div>`;
+    setStatus("");
+  }
+
+  window.DGSTViews.leaders = {
+    init: () => init().catch(e => {
+      console.error(e);
+      const s = document.getElementById("status");
+      if (s) s.textContent = "Error loading leaders.";
+    }),
+  };
+
+})();

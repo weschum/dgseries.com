@@ -10,6 +10,7 @@
 
   const ROUTES = {
     home: { template: "home.html", navKey: "home", viewKey: "home" },
+    leaders: { template: "leaders.html", navKey: "leaders", viewKey: "leaders" },
     standings: { template: "standings.html", navKey: "standings", viewKey: "standings" },
     "all-events": { template: "all-events.html", navKey: "all-events", viewKey: "all-events" },
     player: { template: "player.html", navKey: "player", viewKey: "player" },

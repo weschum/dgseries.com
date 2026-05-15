@@ -506,6 +506,20 @@ tbody tr:hover td { background: #f2f8ff; }
 }
 
 /* Home page events tables (clean alignment, no row lines) */
+/* Leaders view */
+.leaders-section {
+  margin-bottom: 24px;
+}
+
+.leaders-division-title {
+  background-color: var(--accent, #00ff3b);
+  color: #000;
+  padding: 4px 8px;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
 .events-section-title {
   background-color: #555;
   color: #fff;
