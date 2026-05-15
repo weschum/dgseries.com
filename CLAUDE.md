@@ -50,8 +50,10 @@ A disc golf series standings tracker. Vanilla JS + PHP, deployed on Namecheap sh
 | `unofficial` | Results posted, not yet certified | Toggle (per session) |
 | `live` | Live scoring in progress | Toggle (per session) |
 | `pending` | Event happened, no results yet | No |
-| `registering` | Future event, registration open | No |
+| `registering` | Future event (open or closed registration) | No |
 | `cancelled` | Cancelled (inferred from name) | No |
+
+- Note: PDGA status cell can show two icons for registering events — a book.gif (PDGA reg list) and a discgolfscene.com sign-up link. Sign-up link disappears when registration closes. We treat both states as `"registering"` since the distinction doesn't affect standings or any current feature.
 
 - Only `official` and `unofficial` events are stored to DB (`api.php` rejects others)
 - Status detected from PDGA search page `.views-field-StatusIcons` cell (trophy icons, live links, book icon)
