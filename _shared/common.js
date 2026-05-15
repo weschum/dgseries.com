@@ -715,20 +715,20 @@
         if (key === activeKey) { a.classList.add("is-active", "active"); activePill = a; }
       });
 
-      // Scroll the active pill to center of the nav row (mobile scroll hint)
+      // Scroll the active pill to center of the nav row (mobile scroll hint).
+      // Double-rAF: first rAF fires before paint (layout may not be committed yet,
+      // clientWidth can be 0); second rAF fires after the first paint when
+      // getBoundingClientRect values are reliable.
       if (activePill) {
-        requestAnimationFrame(() => {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
           const nav = activePill.closest("nav");
-          if (nav) {
-            // Use getBoundingClientRect so position is relative to the nav viewport,
-            // not the offsetParent (which may be the header or body).
-            const navRect  = nav.getBoundingClientRect();
-            const pillRect = activePill.getBoundingClientRect();
-            const pillPosInNav = (pillRect.left - navRect.left) + nav.scrollLeft;
-            const offset = pillPosInNav - (nav.clientWidth / 2) + (pillRect.width / 2);
-            nav.scrollLeft = Math.max(0, offset);
-          }
-        });
+          if (!nav || nav.clientWidth === 0) return; // not laid out — skip
+          const navRect  = nav.getBoundingClientRect();
+          const pillRect = activePill.getBoundingClientRect();
+          const pillPosInNav = (pillRect.left - navRect.left) + nav.scrollLeft;
+          const offset = pillPosInNav - (nav.clientWidth / 2) + (pillRect.width / 2);
+          nav.scrollLeft = Math.max(0, offset);
+        }));
       }
 
       const branding = SERIES.branding || {};
