@@ -284,7 +284,20 @@ a { color: #000; }
 
 .nav-hamburger:active { opacity: 0.75; }
 
-.nav-hamburger-icon { font-size: 16px; line-height: 1; }
+.nav-hamburger-prompt {
+  font-size: 12px;
+  font-weight: 400;
+  color: #888;
+  letter-spacing: 0.01em;
+}
+
+.nav-hamburger-arrow {
+  font-size: 12px;
+  color: #888;
+  margin-right: 2px;
+}
+
+.nav-hamburger-icon { font-size: 18px; line-height: 1; }
 
 /* ── Mobile dropdown ── */
 @media (max-width: 700px) {
@@ -470,6 +483,8 @@ button:active,
   gap: 8px;
 }
 
+#statusToggles .btn-toggle { flex: 1; justify-content: center; }
+
 #statusToggles > span { margin-bottom: 2px; }
 
 /* =========================
@@ -507,6 +522,16 @@ select {
   background: #fff;
   color: #111;
   font-size: 14px;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23555' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
 }
 
 input[type="search"] {

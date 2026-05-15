@@ -98,8 +98,9 @@
     if (!players.length) return "";
 
     const rows = players.map(p => {
-      const nameCell = p.pdga
-        ? `<a href="${esc(buildPdgaProfileHref(p.pdga))}" target="_blank" rel="noopener noreferrer">${esc(p.name)}</a>`
+      const playerHref = p.pdga ? `#player?pdga=${encodeURIComponent(p.pdga)}` : null;
+      const nameCell = playerHref
+        ? `<a href="${esc(playerHref)}">${esc(p.name)}</a>`
         : esc(p.name);
       const pdgaCell = p.pdga
         ? `<a href="${esc(buildPdgaProfileHref(p.pdga))}" target="_blank" rel="noopener noreferrer">${esc(p.pdga)}</a>`

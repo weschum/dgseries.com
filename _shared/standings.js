@@ -174,7 +174,7 @@
     const toggleWrap = document.getElementById("statusToggles");
     if (toggleWrap && (hasLiveCfg || hasUnofficialCfg)) {
       toggleWrap.style.display = "";
-      toggleWrap.innerHTML = `<span style="font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.2px;">Include</span>`;
+      toggleWrap.innerHTML = `<span style="font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.2px;">Select to Include 👉</span>`;
 
       function makeToggleBtn(storageKey, label, defaultVal) {
         const btn = document.createElement("button");
@@ -211,7 +211,7 @@
         toggleWrap.appendChild(makeToggleBtn("dgst_include_unofficial", "Unofficial", scoringCfg.defaultIncludeUnofficial));
       }
       if (hasLiveCfg) {
-        toggleWrap.appendChild(makeToggleBtn("dgst_include_live", "Live", scoringCfg.defaultIncludeLive));
+        toggleWrap.appendChild(makeToggleBtn("dgst_include_live", "LIVE", scoringCfg.defaultIncludeLive));
       }
     }
 
