@@ -273,12 +273,19 @@ a { color: #000; }
 
 /* ── Mobile dropdown ── */
 @media (max-width: 700px) {
-  /* Single-row header: logo | title | ☰ button */
+  /* Two-row header: row 1 = logo + full-width title, row 2 = hamburger button */
   .site-header-inner {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    grid-template-areas: "brand title nav";
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "brand title"
+      "nav   nav";
     align-items: center;
+    row-gap: 6px;
   }
+
+  .series-title { text-align: left; }
+
+  .nav-hamburger { width: 100%; justify-content: flex-start; }
 
   /* Pills hidden by default — shown as dropdown when .is-open */
   .nav {
