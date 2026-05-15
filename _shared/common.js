@@ -1367,8 +1367,10 @@
     __dgstResultsPromise = (async () => {
       // Status-include toggles: series config defaults, overridable per session
       const scoringCfg = SERIES.scoring || {};
-      const includeLive        = !!(sessionStorage.getItem("dgst_include_live")        ?? scoringCfg.defaultIncludeLive);
-      const includeUnofficial  = !!(sessionStorage.getItem("dgst_include_unofficial")  ?? scoringCfg.defaultIncludeUnofficial);
+      const _rawLive       = sessionStorage.getItem("dgst_include_live");
+      const _rawUnofficial = sessionStorage.getItem("dgst_include_unofficial");
+      const includeLive       = _rawLive       !== null ? _rawLive       === "1" : !!scoringCfg.defaultIncludeLive;
+      const includeUnofficial = _rawUnofficial !== null ? _rawUnofficial === "1" : !!scoringCfg.defaultIncludeUnofficial;
 
       function shouldInclude(ev) {
         if (ev.isCancelled) return false;
@@ -1427,8 +1429,7 @@
       // On normal loads, cap new PDGA fetches per session to avoid rate-limiting.
       // Events beyond the cap are skipped now and picked up on subsequent loads.
       // ?force=1 bypasses the cap entirely.
-      const pdgaCfg2 = SERIES.pdga || {};
-      const newFetchCap = forcing ? Infinity : (Number.isFinite(Number(pdgaCfg2.newFetchCap)) ? Number(pdgaCfg2.newFetchCap) : 6);
+      const newFetchCap = forcing ? Infinity : (Number.isFinite(Number(pdgaCfg.newFetchCap)) ? Number(pdgaCfg.newFetchCap) : 6);
 
       const allRows = [];
       const eventsNeedingFetch = includedEvents.filter(e => !dbOfficialIds.has(e.pdgaEventId));
