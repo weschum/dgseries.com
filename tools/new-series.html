@@ -17,9 +17,9 @@
     }
 
     .page {
-      max-width: 860px;
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 28px 16px 60px;
+      padding: 28px 20px 60px;
     }
 
     h1 {
@@ -33,19 +33,26 @@
       font-size: 0.95rem;
     }
 
-    /* ── Layout: two-column on wider screens ── */
+    /* ── Layout: form wider than preview ── */
     .layout {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      grid-template-columns: 3fr 2fr;
+      gap: 24px;
+      align-items: start;
     }
 
-    @media (max-width: 640px) {
+    @media (max-width: 740px) {
       .layout { grid-template-columns: 1fr; }
     }
 
     .form-col { display: flex; flex-direction: column; gap: 18px; }
-    .preview-col { display: flex; flex-direction: column; gap: 18px; }
+    .preview-col {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: sticky;
+      top: 20px;
+    }
 
     /* ── Cards ── */
     .card {
@@ -374,7 +381,7 @@
 
       <!-- Theme -->
       <div class="card">
-        <details>
+        <details open>
           <summary>Theme</summary>
           <div class="field">
             <label>Accent color</label>
@@ -395,7 +402,7 @@
 
       <!-- Naming -->
       <div class="card">
-        <details>
+        <details open>
           <summary>Naming</summary>
           <div class="field">
             <label>Stop words <span class="hint">comma-separated — stripped from event labels</span></label>
@@ -410,7 +417,7 @@
 
       <!-- Scoring -->
       <div class="card">
-        <details>
+        <details open>
           <summary>Scoring</summary>
           <div class="field-row">
             <div class="field">
@@ -443,7 +450,7 @@
 
       <!-- Standings -->
       <div class="card">
-        <details>
+        <details open>
           <summary>Standings</summary>
           <div class="field-row">
             <div class="field">
